@@ -1,4 +1,4 @@
-package org.openkirkes.java
+package org.openkirkes.java;
 
 public class Library {
     public boolean someLibraryMethod() {

@@ -1,6 +1,6 @@
 package org.openkirkes.java;
 
-public class Library {
+public class OpenKirkes {
     public boolean someLibraryMethod() {
         return true;
     }

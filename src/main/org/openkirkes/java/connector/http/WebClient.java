@@ -1,5 +1,6 @@
 package org.openkirkes.java.connector.http;
 
+import com.google.gson.Gson;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
 import org.openkirkes.java.connector.utils.WebClientCookieJar;
@@ -7,7 +8,6 @@ import org.openkirkes.java.connector.utils.WebClientCookieJar;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 public class WebClient {
@@ -15,7 +15,7 @@ public class WebClient {
     private final WebClientCookieJar clientCookieJar = new WebClientCookieJar();
     private String defaultLanguage = "en-gb";
     private String kirkesBaseURL = "https://kirkes.finna.fi";
-    private OkHttpClient client, nonSessionClient;
+    private OkHttpClient client, nonSessionClient, clientNoRed, getNonSessionClientNoRed;
 
     public WebClient() {
         initWebClient(clientCookieJar, null);
@@ -64,6 +64,15 @@ public class WebClient {
         return domain.startsWith("www.") ? domain.substring(4) : domain;
     }
 
+    public String getDomainName() {
+        try {
+            return getDomainName(kirkesBaseURL);
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+            return kirkesBaseURL;
+        }
+    }
+
     private static String getProtocol(String url) throws URISyntaxException {
         URI uri = new URI(url);
         return uri.getScheme();
@@ -78,12 +87,12 @@ public class WebClient {
         }
     }
 
-    public static String generateURL(String url, String path) {
+    public String generateURL(String path) {
         try {
-            return getProtocol(url) + "://" + getDomainName(url) + "/" + path;
+            return getProtocol(kirkesBaseURL) + "://" + getDomainName(kirkesBaseURL) + "/" + path;
         } catch (Exception e) {
             e.printStackTrace();
-            return url + "/" + path;
+            return kirkesBaseURL + "/" + path;
         }
     }
 
@@ -91,12 +100,10 @@ public class WebClient {
         this.kirkesBaseURL = kirkesBaseURL;
     }
 
-    private Headers getDefaultHeaders() {
-        HashMap<String, String> headerMap = new HashMap<>();
-        headerMap.put("Referer", optimizeURL(kirkesBaseURL));
-        headerMap.put("Origin", optimizeURL(kirkesBaseURL) + "/");
-        headerMap.put("User-Agent", "Mozilla/5.0");
-        return Headers.of(headerMap);
+    private void appendDefaultHeaders(Request.Builder builder) {
+        builder.addHeader("Referer", optimizeURL(kirkesBaseURL) + "/");
+        builder.addHeader("Origin", optimizeURL(kirkesBaseURL) + "/");
+        builder.addHeader("User-Agent", "Mozilla/5.0");
     }
 
     private void initWebClient(CookieJar cookieJar, Cache cache) {
@@ -128,6 +135,20 @@ public class WebClient {
                 .callTimeout(10, TimeUnit.SECONDS)
                 .cache(cache)
                 .addInterceptor(interceptor).build();
+
+        clientNoRed = new OkHttpClient.Builder()
+                .callTimeout(10, TimeUnit.SECONDS)
+                .cache(cache)
+                .followSslRedirects(false)
+                .followRedirects(false)
+                .cookieJar(cookieJar)
+                .addInterceptor(interceptor).build();
+        getNonSessionClientNoRed = new OkHttpClient.Builder()
+                .callTimeout(10, TimeUnit.SECONDS)
+                .followSslRedirects(false)
+                .followRedirects(false)
+                .cache(cache)
+                .addInterceptor(interceptor).build();
     }
 
     /**
@@ -137,13 +158,13 @@ public class WebClient {
      * @param url               URL
      * @param webClientListener Interface
      */
-    public void getRequest(boolean session, String url, WebClientListener webClientListener) {
-        Request request = new Request.Builder()
+    public void getRequest(boolean session, boolean redirect, String url, WebClientListener webClientListener) {
+        Request.Builder request = new Request.Builder()
                 .url(url)
-                .headers(getDefaultHeaders())
                 .cacheControl(new CacheControl.Builder().noCache().build())
-                .get().build();
-        getSuitableClientAndRequest(session, webClientListener, request);
+                .get();
+        appendDefaultHeaders(request);
+        getSuitableClientAndRequest(session, redirect, webClientListener, request.build());
     }
 
     /*
@@ -158,13 +179,15 @@ public class WebClient {
      * @param requestBody       Request Body of POST Request
      * @param webClientListener Interface
      */
-    public void postRequest(boolean session, String url, RequestBody requestBody, WebClientListener webClientListener) {
-        Request request = new Request.Builder()
+    public void postRequest(boolean session, boolean redirect, String url, RequestBody requestBody, WebClientListener webClientListener) {
+        System.out.println(url);
+        System.out.println(new Gson().toJson(clientCookieJar.getCookies()));
+        Request.Builder request = new Request.Builder()
                 .url(url)
-                .headers(getDefaultHeaders())
-                .cacheControl(new CacheControl.Builder().noCache().build())
-                .post(requestBody).build();
-        getSuitableClientAndRequest(session, webClientListener, request);
+                .method("POST", requestBody)
+                .cacheControl(new CacheControl.Builder().noCache().build());
+        appendDefaultHeaders(request);
+        getSuitableClientAndRequest(session, redirect, webClientListener, request.build());
     }
 
     /**
@@ -174,17 +197,17 @@ public class WebClient {
      * @param url               URL
      * @param webClientListener Interface
      */
-    public void getRequestWithCache(boolean session, String url, WebClientListener webClientListener) {
-        Request request = new Request.Builder()
+    public void getRequestWithCache(boolean session, boolean redirect, String url, WebClientListener webClientListener) {
+        Request.Builder request = new Request.Builder()
                 .url(url)
-                .headers(getDefaultHeaders())
                 //.cacheControl(new CacheControl.Builder().noCache().build())
-                .get().build();
-        getSuitableClientAndRequest(session, webClientListener, request);
+                .get();
+        appendDefaultHeaders(request);
+        getSuitableClientAndRequest(session, redirect, webClientListener, request.build());
     }
 
-    private void getSuitableClientAndRequest(boolean session, WebClientListener webClientListener, Request request) {
-        OkHttpClient httpClient = (session) ? client : nonSessionClient;
+    private void getSuitableClientAndRequest(boolean session, boolean redirect, WebClientListener webClientListener, Request request) {
+        OkHttpClient httpClient = (session) ? (redirect ? client : clientNoRed) : (redirect ? nonSessionClient : getNonSessionClientNoRed);
         httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {

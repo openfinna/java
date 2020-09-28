@@ -14,5 +14,7 @@ include 'shared'
 include 'api'
 include 'services:webservice'
 */
+include 'java'
+include 'java.test'
 
-rootProject.name = 'java'
+rootProject.name = 'org.openkirkes.java'

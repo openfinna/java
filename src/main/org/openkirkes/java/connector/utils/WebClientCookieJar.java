@@ -27,6 +27,10 @@ public class WebClientCookieJar implements CookieJar {
         return persistentCookies;
     }
 
+    public List<Cookie> getCookies() {
+        return cookies;
+    }
+
     private static boolean isCookieExpired(Cookie cookie) {
         return cookie.expiresAt() < System.currentTimeMillis();
     }

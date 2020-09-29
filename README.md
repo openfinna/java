@@ -4,7 +4,7 @@ OpenKirkes Java Library, same functionality from the API server, but on-device.
 ## To-Do list
 - [x] Login System using cookies
 - [ ] Get holds
-- [ ] Get loans
+- [x] Get loans
 - [ ] Renew loans
 - [ ] Change hold's pickup location
 - [ ] Get pickup locations

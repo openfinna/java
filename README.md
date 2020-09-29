@@ -2,7 +2,7 @@
 OpenKirkes Java Library, same functionality from the API server, but on-device.
 
 ## To-Do list
-- [ ] Login System using cookies
+- [x] Login System using cookies
 - [ ] Get holds
 - [ ] Get loans
 - [ ] Renew loans
@@ -15,7 +15,7 @@ OpenKirkes Java Library, same functionality from the API server, but on-device.
 - [ ] Get default pickup location (also in Get Pickup Locations request)
 - [ ] Get fines
 - [ ] Get fines payment link
-- [ ] Get user information
+- [x] Get user information
 - [ ] Edit user information
 - [ ] Get library cards list
 - [ ] Support multiple library cards

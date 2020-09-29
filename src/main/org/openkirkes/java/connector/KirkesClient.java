@@ -91,6 +91,38 @@ public class KirkesClient {
         });
     }
 
+    public void getLoans(LoansInterface loansInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("MyResearch/CheckedOut"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        loansInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                loansInterface.onGetLoans(KirkesHTMLParser.parseLoans(response.body().string()));
+                            } catch (IOException e) {
+                                loansInterface.onError(e);
+                            }
+                        } else {
+                            loansInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                loansInterface.onError(e);
+            }
+        });
+    }
+
     public void getAccountDetails(AccountDetailsInterface detailsInterface) {
         preCheck(new PreCheckInterface() {
             @Override

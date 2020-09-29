@@ -1,14 +1,16 @@
 package org.openkirkes.java.connector;
 
 import okhttp3.Call;
-import okhttp3.MultipartBody;
+import okhttp3.FormBody;
 import okhttp3.Response;
 import org.jetbrains.annotations.NotNull;
+import org.openkirkes.java.connector.classes.UserAuthentication;
+import org.openkirkes.java.connector.classes.models.User;
 import org.openkirkes.java.connector.exceptions.InvalidCredentialsException;
 import org.openkirkes.java.connector.exceptions.KirkesClientException;
+import org.openkirkes.java.connector.exceptions.SessionValidationException;
 import org.openkirkes.java.connector.http.WebClient;
-import org.openkirkes.java.connector.interfaces.LoginCSRFInterface;
-import org.openkirkes.java.connector.interfaces.LoginInterface;
+import org.openkirkes.java.connector.interfaces.*;
 import org.openkirkes.java.connector.parser.KirkesHTMLParser;
 
 import java.io.IOException;
@@ -16,6 +18,7 @@ import java.io.IOException;
 public class KirkesClient {
 
     private final WebClient webClient;
+    private UserAuthentication userAuthentication;
 
     public KirkesClient() {
         webClient = new WebClient();
@@ -25,24 +28,26 @@ public class KirkesClient {
         this.webClient = webClient;
     }
 
+    public void changeUserAuthentication(UserAuthentication userAuthentication, boolean fetchUserDetails, LoginInterface loginInterface) {
+        webClient.getClientCookieJar().clear();
+        login(userAuthentication, fetchUserDetails, loginInterface);
+    }
 
-    public void login(String username, String password, boolean fetchUserDetails, LoginInterface loginInterface) {
+    public void login(UserAuthentication userAuthentication, boolean fetchUserDetails, LoginInterface loginInterface) {
+        this.userAuthentication = userAuthentication;
         fetchLoginCSRF(new LoginCSRFInterface() {
             @Override
             public void onFetchCSRFToken(String csrfToken) {
-                // TODO login
-                System.out.println(csrfToken);
-                MultipartBody postData = new MultipartBody.Builder()
-                        .addFormDataPart("username", username)
-                        .addFormDataPart("password", password)
-                        .addFormDataPart("target", "kirkes")
-                        .addFormDataPart("auth_method", "MultiILS")
-                        .addFormDataPart("layout", "lightbox")
-                        .addFormDataPart("csrf", csrfToken)
-                        .addFormDataPart("processLogin", "Kirjaudu")
-                        .addFormDataPart("secondary_username", "").build();
-                //webClient.postRequest(true, true, webClient.generateURL( "MyResearch/Home?layout=lightbox&lbreferer=https%3A%2F%2F" + webClient.getDomainName() + "%2FMyResearch%2FUserLogin"),
-                webClient.postRequest(true, true, webClient.generateURL("MyResearch/Home?layout=lightbox&lbreferer=https://kirkes.finna.fi/MyResearch/UserLogin"),
+                FormBody postData = new FormBody.Builder()
+                        .add("username", userAuthentication.getUsername())
+                        .add("password", userAuthentication.getPassword())
+                        .add("target", "kirkes")
+                        .add("auth_method", "MultiILS")
+                        .add("layout", "lightbox")
+                        .add("csrf", csrfToken)
+                        .add("processLogin", "Kirjaudu")
+                        .add("secondary_username", "").build();
+                webClient.postRequest(true, true, webClient.generateURL("MyResearch/Home?layout=lightbox&lbreferer=https%3A%2F%2F" + webClient.getDomainName() + "%2FMyResearch%2FUserLogin"),
                         postData, new WebClient.WebClientListener() {
                             @Override
                             public void onFailed(@NotNull Call call, @NotNull IOException e) {
@@ -51,19 +56,23 @@ public class KirkesClient {
 
                             @Override
                             public void onResponse(@NotNull Response response) {
-                                System.out.println("RESPCODE: " + response.code());
                                 if (response.code() == 205) {
                                     if (fetchUserDetails) {
-                                        // TODO fetch and then notify about successful login
+                                        getAccountDetails(new AccountDetailsInterface() {
+                                            @Override
+                                            public void onGetAccountDetails(User user) {
+                                                loginInterface.onLogin(user);
+                                            }
+
+                                            @Override
+                                            public void onError(Exception e) {
+                                                loginInterface.onError(e);
+                                            }
+                                        });
                                     } else {
-                                        loginInterface.onLogin();
+                                        loginInterface.onLogin(null);
                                     }
                                 } else {
-                                    try {
-                                        System.out.println("CONTENT: " + response.body().string());
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-                                    }
                                     loginInterface.onError(new InvalidCredentialsException());
                                 }
                             }
@@ -78,6 +87,89 @@ public class KirkesClient {
             @Override
             public void onError(Exception e) {
                 loginInterface.onError(e);
+            }
+        });
+    }
+
+    public void getAccountDetails(AccountDetailsInterface detailsInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("MyResearch/Profile"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        detailsInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                detailsInterface.onGetAccountDetails(KirkesHTMLParser.parseUserDetails(response.body().string()));
+                            } catch (IOException e) {
+                                detailsInterface.onError(e);
+                            }
+                        } else {
+                            detailsInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                detailsInterface.onError(e);
+            }
+        });
+    }
+
+    private void preCheck(PreCheckInterface preCheckInterface) {
+        validateSession(new SessionValidationInterface() {
+            @Override
+            public void onSessionValidated() {
+                preCheckInterface.onPreCheck();
+            }
+
+            @Override
+            public void onError(Exception e) {
+                login(KirkesClient.this.userAuthentication, false, new LoginInterface() {
+                    @Override
+                    public void onError(Exception e) {
+                        preCheckInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onLogin(User user) {
+                        validateSession(new SessionValidationInterface() {
+                            @Override
+                            public void onSessionValidated() {
+                                preCheckInterface.onPreCheck();
+                            }
+
+                            @Override
+                            public void onError(Exception e) {
+                                preCheckInterface.onError(e);
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    private void validateSession(SessionValidationInterface validationInterface) {
+        webClient.getRequest(true, true, webClient.generateURL("AJAX/JSON?method=getUserTransactions"), new WebClient.WebClientListener() {
+            @Override
+            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                validationInterface.onError(e);
+            }
+
+            @Override
+            public void onResponse(@NotNull Response response) {
+                if (response.isSuccessful())
+                    validationInterface.onSessionValidated();
+                else
+                    validationInterface.onError(new SessionValidationException());
             }
         });
     }
@@ -99,10 +191,8 @@ public class KirkesClient {
                         else
                             loginCSRFInterface.onError(new KirkesClientException("Unable to find CSRF token"));
                     } catch (IOException e) {
-                        e.printStackTrace();
                         loginCSRFInterface.onFailed(null, e);
                     } catch (Exception e) {
-                        e.printStackTrace();
                         loginCSRFInterface.onError(e);
                     }
                 } else {

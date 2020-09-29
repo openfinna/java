@@ -1,11 +1,13 @@
 package org.openkirkes.java.connector.http;
 
-import com.google.gson.Gson;
 import okhttp3.*;
+import okhttp3.logging.HttpLoggingInterceptor;
 import org.jetbrains.annotations.NotNull;
 import org.openkirkes.java.connector.utils.WebClientCookieJar;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
@@ -16,9 +18,14 @@ public class WebClient {
     private String defaultLanguage = "en-gb";
     private String kirkesBaseURL = "https://kirkes.finna.fi";
     private OkHttpClient client, nonSessionClient, clientNoRed, getNonSessionClientNoRed;
+    private final HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY);
 
     public WebClient() {
         initWebClient(clientCookieJar, null);
+    }
+
+    public WebClientCookieJar getClientCookieJar() {
+        return clientCookieJar;
     }
 
     public WebClient(String language) {
@@ -73,6 +80,12 @@ public class WebClient {
         }
     }
 
+    private Proxy getDebugProxy() {
+        int port = 8888;
+        return new Proxy(Proxy.Type.HTTP,
+                new InetSocketAddress("127.0.0.1", port));
+    }
+
     private static String getProtocol(String url) throws URISyntaxException {
         URI uri = new URI(url);
         return uri.getScheme();
@@ -108,47 +121,102 @@ public class WebClient {
 
     private void initWebClient(CookieJar cookieJar, Cache cache) {
         // Adding language cookie
+
         try {
             clientCookieJar.addCookie(new Cookie.Builder().domain(getDomainName(kirkesBaseURL)).expiresAt(-1).httpOnly().secure().path("/").name("language").value(defaultLanguage).build());
+
+           /* final TrustManager[] trustAllCerts = new TrustManager[] {
+                    new X509TrustManager() {
+                        @Override
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {
+                        }
+
+                        @Override
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {
+                        }
+
+                        @Override
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return new java.security.cert.X509Certificate[]{};
+                        }
+                    }
+            };
+
+            // Install the all-trusting trust manager
+            final SSLContext sslContext;
+            sslContext = SSLContext.getInstance("SSL");
+            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+            // Create an ssl socket factory with our all-trusting manager
+            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+            final HostnameVerifier hostnameVerifier = new HostnameVerifier() {
+                @Override
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            };*/
+
+            Interceptor interceptor = chain -> {
+                Request request = chain.request();
+                // try the request
+                Response response = chain.proceed(request);
+                int tryCount = 0;
+                while (!response.isSuccessful() && tryCount < 5) {
+                    tryCount++;
+                    // retry the request
+                    response = chain.proceed(request);
+                }
+                // otherwise just pass the original response on
+                return response;
+            };
+            client = new OkHttpClient.Builder()
+                    .callTimeout(10, TimeUnit.SECONDS)
+                    .cache(cache)
+                    .cookieJar(cookieJar)
+                    /*  .proxy(getDebugProxy())
+                      .sslSocketFactory(sslSocketFactory, (X509TrustManager)trustAllCerts[0])
+                      .hostnameVerifier(hostnameVerifier)*/
+
+                    //.addInterceptor(loggingInterceptor)
+                    .addInterceptor(interceptor).build();
+            nonSessionClient = new OkHttpClient.Builder()
+                    .callTimeout(10, TimeUnit.SECONDS)
+                    .cache(cache)
+                    /* .proxy(getDebugProxy())
+                     .sslSocketFactory(sslSocketFactory, (X509TrustManager)trustAllCerts[0])
+                     .hostnameVerifier(hostnameVerifier)*/
+
+                    //.addInterceptor(loggingInterceptor)
+                    .addInterceptor(interceptor).build();
+
+            clientNoRed = new OkHttpClient.Builder()
+                    .callTimeout(10, TimeUnit.SECONDS)
+                    .cache(cache)
+                    .followSslRedirects(false)
+                    .followRedirects(false)
+                    .cookieJar(cookieJar)
+                    /* .proxy(getDebugProxy())
+                     .sslSocketFactory(sslSocketFactory, (X509TrustManager)trustAllCerts[0])
+                     .hostnameVerifier(hostnameVerifier)*/
+
+                    //.addInterceptor(loggingInterceptor)
+                    .addInterceptor(interceptor).build();
+            getNonSessionClientNoRed = new OkHttpClient.Builder()
+                    .callTimeout(10, TimeUnit.SECONDS)
+                    .followSslRedirects(false)
+                    .followRedirects(false)
+                    .cache(cache)
+                    /*.proxy(getDebugProxy())
+                    .sslSocketFactory(sslSocketFactory, (X509TrustManager)trustAllCerts[0])
+                    .hostnameVerifier(hostnameVerifier)*/
+
+                    //.addInterceptor(loggingInterceptor)
+                    .addInterceptor(interceptor).build();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
-        Interceptor interceptor = chain -> {
-            Request request = chain.request();
-            // try the request
-            Response response = chain.proceed(request);
-            int tryCount = 0;
-            while (!response.isSuccessful() && tryCount < 5) {
-                tryCount++;
-                // retry the request
-                response = chain.proceed(request);
-            }
-            // otherwise just pass the original response on
-            return response;
-        };
-        client = new OkHttpClient.Builder()
-                .callTimeout(10, TimeUnit.SECONDS)
-                .cache(cache)
-                .cookieJar(cookieJar)
-                .addInterceptor(interceptor).build();
-        nonSessionClient = new OkHttpClient.Builder()
-                .callTimeout(10, TimeUnit.SECONDS)
-                .cache(cache)
-                .addInterceptor(interceptor).build();
 
-        clientNoRed = new OkHttpClient.Builder()
-                .callTimeout(10, TimeUnit.SECONDS)
-                .cache(cache)
-                .followSslRedirects(false)
-                .followRedirects(false)
-                .cookieJar(cookieJar)
-                .addInterceptor(interceptor).build();
-        getNonSessionClientNoRed = new OkHttpClient.Builder()
-                .callTimeout(10, TimeUnit.SECONDS)
-                .followSslRedirects(false)
-                .followRedirects(false)
-                .cache(cache)
-                .addInterceptor(interceptor).build();
+
     }
 
     /**
@@ -180,8 +248,6 @@ public class WebClient {
      * @param webClientListener Interface
      */
     public void postRequest(boolean session, boolean redirect, String url, RequestBody requestBody, WebClientListener webClientListener) {
-        System.out.println(url);
-        System.out.println(new Gson().toJson(clientCookieJar.getCookies()));
         Request.Builder request = new Request.Builder()
                 .url(url)
                 .method("POST", requestBody)

@@ -4,63 +4,37 @@ import okhttp3.Cookie;
 import okhttp3.CookieJar;
 import okhttp3.HttpUrl;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class WebClientCookieJar implements CookieJar {
 
-    List<Cookie> cookies = new ArrayList<>();
+    private final Set<Cookie> cookieStore = new LinkedHashSet<>();
 
-    public WebClientCookieJar() {
-
-    }
-
-    private static List<Cookie> filterPersistentCookies(List<Cookie> cookies) {
-        List<Cookie> persistentCookies = new ArrayList<>();
-
-        for (Cookie cookie : cookies) {
-            if (cookie.persistent()) {
-                persistentCookies.add(cookie);
-            }
-        }
-        return persistentCookies;
-    }
-
-    public List<Cookie> getCookies() {
-        return cookies;
-    }
-
-    private static boolean isCookieExpired(Cookie cookie) {
-        return cookie.expiresAt() < System.currentTimeMillis();
+    @Override
+    public synchronized void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+        cookieStore.addAll(cookies);
     }
 
     @Override
-    synchronized public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
-        this.cookies.addAll(cookies);
-    }
-
-    @Override
-    synchronized public List<Cookie> loadForRequest(HttpUrl url) {
-        List<Cookie> cookiesToRemove = new ArrayList<>();
-        List<Cookie> validCookies = new ArrayList<>();
-
-        for (Iterator<Cookie> it = cookies.iterator(); it.hasNext(); ) {
-            Cookie currentCookie = it.next();
-
-            if (isCookieExpired(currentCookie)) {
-                cookiesToRemove.add(currentCookie);
+    public synchronized List<Cookie> loadForRequest(HttpUrl url) {
+        List<Cookie> matchingCookies = new ArrayList<>();
+        Iterator<Cookie> it = cookieStore.iterator();
+        while (it.hasNext()) {
+            Cookie cookie = it.next();
+            if (cookie.expiresAt() < System.currentTimeMillis()) {
                 it.remove();
-
-            } else if (currentCookie.matches(url)) {
-                validCookies.add(currentCookie);
+            } else if (cookie.matches(url)) {
+                matchingCookies.add(cookie);
             }
         }
+        return matchingCookies;
+    }
 
-        return validCookies;
+    public void clear() {
+        cookieStore.clear();
     }
 
     public void addCookie(Cookie cookie) {
-        cookies.add(cookie);
+        cookieStore.add(cookie);
     }
 }

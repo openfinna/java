@@ -8,9 +8,13 @@ import org.jsoup.select.Elements;
 import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
+import org.openfinna.java.connector.classes.models.holds.Hold;
+import org.openfinna.java.connector.classes.models.holds.HoldPickupData;
+import org.openfinna.java.connector.classes.models.holds.HoldStatus;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
 import org.openfinna.java.connector.classes.models.user.LibraryPreferences;
+import org.openfinna.java.connector.http.WebClient;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -31,8 +35,13 @@ public class KirkesHTMLParser {
     private static final String renewCountDelimiter = "/";
     private static final String renewCountRegex = "([0-9]+" + renewCountDelimiter + "[0-9]+)";
     private static final String dueDateRegex = "((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+";
+    private static final String expirationDateRegex = "(((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+)";
+    private static final String orderNoRegex = "([0-9]+)";
     private static final Pattern renewCountPattern = Pattern.compile(renewCountRegex);
+    private static final Pattern expirationDatePattern = Pattern.compile(expirationDateRegex);
     private static final Pattern dueDatePattern = Pattern.compile(dueDateRegex);
+    private static final Pattern orderNoPattern = Pattern.compile(orderNoRegex);
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
 
     public static String parseCSRF(String html) {
         Document document = Jsoup.parse(html);
@@ -179,5 +188,106 @@ public class KirkesHTMLParser {
             }
         }
         return loans;
+    }
+
+    public static List<Hold> parseHolds(String html) throws ParseException {
+        List<Hold> holds = new ArrayList<>();
+        Document document = Jsoup.parse(html);
+
+        Element table = document.getElementsByClass("myresearch-table").first();
+        if (table != null) {
+            Elements loansHtml = table.getElementsByClass("myresearch-row");
+            for (Element loanHtml : loansHtml) {
+                String recordId = null;
+                int queue = 0;
+                HoldStatus status = HoldStatus.WAITING;
+                // Init all elements
+                Element inputOne = loanHtml.getElementsByAttributeValue("name", "cancelSelectedIDS[]").first();
+                Element inputTwo = loanHtml.getElementsByAttributeValue("name", "cancelAllIDS[]").first();
+                Element titleElement = loanHtml.getElementsByClass("record-title").first();
+                Element plElem = loanHtml.getElementsByClass("pickupLocationSelected").first();
+                Element plRoot = loanHtml.getElementsByClass("pickup-location-container").first();
+                Element metadataElem = loanHtml.getElementsByClass("record-core-metadata").first();
+                Element transmitElem = loanHtml.getElementsByClass("text-success").first();
+                Element availElem = loanHtml.getElementsByClass("alert alert-success").first();
+                Element statusBox = loanHtml.getElementsByClass("holds-status-information").first();
+                Element queueElem = statusBox.getElementsByTag("p").first();
+                Element typeElem = loanHtml.getElementsByClass("label-info").first();
+                Element imageElem = loanHtml.getElementsByClass("recordcover").first();
+
+                if (queueElem != null) {
+                    String[] queueSplit = queueElem.text().split(":");
+                    if (queueSplit.length > 0) {
+                        queue = Integer.parseInt(queueSplit[1].trim());
+                    }
+                }
+
+                Date expirationDate = null, holdDate = null;
+                Matcher dateMatcher = expirationDatePattern.matcher(statusBox.text());
+                List<String> values = new ArrayList<>();
+                while (dateMatcher.find()) {
+                    values.add(dateMatcher.group());
+                }
+                if (values.size() > 1) {
+                    holdDate = dateFormat.parse(values.get(0));
+                    expirationDate = dateFormat.parse(values.get(1));
+                }
+
+                String type = null, title = null, author = null, image = null, currentPickupLocation = null, actionId = null;
+                boolean cancelPossible = false;
+                int reservationNumber = -1;
+
+                if (metadataElem != null) {
+                    Element authorUrl = metadataElem.getElementsByTag("a").first();
+                    if (authorUrl != null) {
+                        author = authorUrl.text();
+                    }
+                }
+
+                if (plElem != null) {
+                    currentPickupLocation = plElem.text();
+                } else if (plRoot != null) {
+                    String[] lParts = plRoot.text().split(":");
+                    if (lParts.length > 1) {
+                        currentPickupLocation = lParts[1].replace("  ", "").replace("\n", "");
+                    }
+                }
+                if (titleElement != null) {
+                    title = titleElement.text();
+                    recordId = titleElement.attr("href").replace("/Record/", "");
+                }
+                if (typeElem != null) {
+                    type = typeElem.text();
+                }
+                if (imageElem != null) {
+                    image = WebClient.optimizeURL(WebClient.kirkesBaseURL) + imageElem.attr("src");
+                }
+
+                if (inputOne != null) {
+                    cancelPossible = !inputOne.hasAttr("disabled");
+                    if (inputOne.hasAttr("value"))
+                        actionId = inputOne.attr("value");
+                } else if (inputTwo != null) {
+                    cancelPossible = !inputTwo.hasAttr("disabled");
+                    if (inputTwo.hasAttr("value"))
+                        actionId = inputTwo.attr("value");
+                }
+
+                if (transmitElem != null && !cancelPossible)
+                    status = HoldStatus.IN_TRANSIT;
+                else if (availElem != null && !cancelPossible) {
+                    status = HoldStatus.AVAILABLE;
+                    Matcher orderNoMatcher = orderNoPattern.matcher(availElem.text());
+                    StringBuilder numString = new StringBuilder();
+                    while (orderNoMatcher.find())
+                        numString.append(orderNoMatcher.group());
+                    if (numString.length() > 0)
+                        reservationNumber = Integer.parseInt(numString.toString());
+                }
+
+                holds.add(new Hold(recordId, actionId, status, cancelPossible, new HoldPickupData(currentPickupLocation, reservationNumber), queue, expirationDate, holdDate, new Resource(recordId, title, author, type, image)));
+            }
+        }
+        return holds;
     }
 }

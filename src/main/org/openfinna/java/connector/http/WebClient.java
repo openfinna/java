@@ -16,7 +16,7 @@ public class WebClient {
 
     private final WebClientCookieJar clientCookieJar = new WebClientCookieJar();
     private String defaultLanguage = "en-gb";
-    private String kirkesBaseURL = "https://finna.fi";
+    public static String kirkesBaseURL = "https://finna.fi";
     private OkHttpClient client, nonSessionClient, clientNoRed, getNonSessionClientNoRed;
     private final HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY);
 
@@ -91,7 +91,7 @@ public class WebClient {
         return uri.getScheme();
     }
 
-    private static String optimizeURL(String url) {
+    public static String optimizeURL(String url) {
         try {
             return getProtocol(url) + "://" + getDomainName(url);
         } catch (Exception e) {
@@ -110,7 +110,7 @@ public class WebClient {
     }
 
     public void setKirkesBaseURL(String kirkesBaseURL) {
-        this.kirkesBaseURL = kirkesBaseURL;
+        WebClient.kirkesBaseURL = kirkesBaseURL;
     }
 
     private void appendDefaultHeaders(Request.Builder builder) {

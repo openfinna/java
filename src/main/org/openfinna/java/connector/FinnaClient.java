@@ -126,6 +126,38 @@ public class FinnaClient {
         });
     }
 
+    public void getHolds(HoldsInterface holdsInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("MyResearch/Holds"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        holdsInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                holdsInterface.onGetHolds(KirkesHTMLParser.parseHolds(response.body().string()));
+                            } catch (Exception e) {
+                                holdsInterface.onError(e);
+                            }
+                        } else {
+                            holdsInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                holdsInterface.onError(e);
+            }
+        });
+    }
+
     public void getAccountDetails(AccountDetailsInterface detailsInterface) {
         preCheck(new PreCheckInterface() {
             @Override

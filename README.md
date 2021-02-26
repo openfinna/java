@@ -3,7 +3,7 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 
 ## To-Do list
 - [x] Login System using cookies
-- [ ] Get holds
+- [x] Get holds
 - [x] Get loans
 - [ ] Renew loans
 - [ ] Change hold's pickup location

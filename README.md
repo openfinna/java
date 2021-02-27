@@ -6,7 +6,7 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 - [x] Get holds
 - [x] Get loans
 - [x] Renew loans
-- [ ] Change hold's pickup location
+- [x] Change hold's pickup location
 - [ ] Get pickup locations
 - [ ] Search
 - [ ] Resource details

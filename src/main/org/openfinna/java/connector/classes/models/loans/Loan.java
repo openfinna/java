@@ -33,8 +33,9 @@ public class Loan {
         this.dueDate = dueDate;
     }
 
-    public Loan() {
-
+    public Loan(String id, String renewId) {
+        this.id = id;
+        this.renewId = renewId;
     }
 
     public String getId() {

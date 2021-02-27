@@ -7,5 +7,7 @@ import java.util.List;
 public interface LoansInterface {
     void onGetLoans(List<Loan> loans);
 
+    void onHoldRenew(Loan loan, String status);
+
     void onError(Exception e);
 }

@@ -14,6 +14,7 @@ import org.openfinna.java.connector.classes.models.holds.HoldStatus;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
 import org.openfinna.java.connector.classes.models.user.LibraryPreferences;
+import org.openfinna.java.connector.exceptions.KirkesClientException;
 import org.openfinna.java.connector.http.WebClient;
 
 import java.text.ParseException;
@@ -122,6 +123,39 @@ public class KirkesHTMLParser {
         user.setLibraryPreferences(libraryPreferences);
         user.setKirkesPreferences(kirkesPreferences);
         return user;
+    }
+
+    public static String checkRenewResult(String html, Loan loan) throws KirkesClientException {
+        Document document = Jsoup.parse(html);
+        Element table = document.getElementsByClass("myresearch-table").first();
+        if (table != null) {
+            Elements loansHtml = table.getElementsByClass("myresearch-row");
+            for (Element loanHtml : loansHtml) {
+                String recordId = loanHtml.attributes().get("id").replace("record", "");
+                if (recordId.equals(loan.getId())) {
+                    // Alert banner element
+                    Element resultElement = loanHtml.getElementsByClass("alert").first();
+                    // If not null, proceed parsing
+                    if (resultElement != null) {
+                        if (resultElement.hasClass("alert-success")) {
+                            // Success
+                            return resultElement.wholeText();
+                        } else {
+                            // Failure
+                            throw new KirkesClientException(resultElement.wholeText());
+                        }
+                    } else {
+                        // Proceed to parse another error banner if possible
+                        Element headerMsg = document.getElementsByClass("flash-message alert").first();
+                        if (headerMsg != null)
+                            throw new KirkesClientException(headerMsg.wholeText());
+                    }
+                }
+            }
+            // How did we get here? That must mean that renew failed
+            throw new KirkesClientException("Renew failed");
+        }
+        throw new KirkesClientException("Something unexpected happened");
     }
 
     public static List<Loan> parseLoans(String html) {

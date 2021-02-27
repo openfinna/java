@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 import org.openfinna.java.connector.classes.UserAuthentication;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
+import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.exceptions.InvalidCredentialsException;
 import org.openfinna.java.connector.exceptions.KirkesClientException;
 import org.openfinna.java.connector.exceptions.SessionValidationException;
@@ -109,6 +110,43 @@ public class FinnaClient {
                         if (response.code() == 200) {
                             try {
                                 loansInterface.onGetLoans(KirkesHTMLParser.parseLoans(response.body().string()));
+                            } catch (IOException e) {
+                                loansInterface.onError(e);
+                            }
+                        } else {
+                            loansInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                loansInterface.onError(e);
+            }
+        });
+    }
+
+    public void renewLoan(Loan loan, LoansInterface loansInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                FormBody postData = new FormBody.Builder()
+                        .add("selectAllIDS[]", loan.getRenewId())
+                        .add("renewAllIDS[]", loan.getRenewId())
+                        .add("renewSelectedIDS[]", loan.getRenewId())
+                        .add("renewSelected", "this should not be empty, at least it's working :D").build();
+                webClient.postRequest(true, true, webClient.generateURL("MyResearch/CheckedOut"), postData, new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        loansInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                loansInterface.onHoldRenew(loan, KirkesHTMLParser.checkRenewResult(response.body().string(), loan));
                             } catch (IOException e) {
                                 loansInterface.onError(e);
                             }

@@ -463,8 +463,21 @@ public class FinnaClient {
             public void onResponse(@NotNull Response response) {
                 if (response.isSuccessful())
                     validationInterface.onSessionValidated();
-                else
-                    validationInterface.onError(new SessionValidationException());
+                else {
+                    login(FinnaClient.this.userAuthentication, false, new LoginInterface() {
+                        @Override
+                        public void onError(Exception e) {
+                            validationInterface.onError(new SessionValidationException());
+                        }
+
+                        @Override
+                        public void onLogin(User user) {
+                            validationInterface.onSessionValidated();
+                        }
+                    });
+
+                }
+
             }
         });
     }

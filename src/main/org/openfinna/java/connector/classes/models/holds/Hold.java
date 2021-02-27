@@ -27,6 +27,11 @@ public class Hold {
         this.resource = resource;
     }
 
+    public Hold(String id, String actionId) {
+        this.id = id;
+        this.actionId = actionId;
+    }
+
     public String getId() {
         return id;
     }

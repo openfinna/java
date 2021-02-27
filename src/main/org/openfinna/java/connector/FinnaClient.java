@@ -4,9 +4,13 @@ import okhttp3.Call;
 import okhttp3.FormBody;
 import okhttp3.Response;
 import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.openfinna.java.connector.classes.UserAuthentication;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
+import org.openfinna.java.connector.classes.models.holds.Hold;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.exceptions.InvalidCredentialsException;
 import org.openfinna.java.connector.exceptions.KirkesClientException;
@@ -146,7 +150,7 @@ public class FinnaClient {
                     public void onResponse(@NotNull Response response) {
                         if (response.code() == 200) {
                             try {
-                                loansInterface.onHoldRenew(loan, KirkesHTMLParser.checkRenewResult(response.body().string(), loan));
+                                loansInterface.onLoanRenew(loan, KirkesHTMLParser.checkRenewResult(response.body().string(), loan));
                             } catch (IOException e) {
                                 loansInterface.onError(e);
                             }
@@ -180,6 +184,49 @@ public class FinnaClient {
                             try {
                                 holdsInterface.onGetHolds(KirkesHTMLParser.parseHolds(response.body().string()));
                             } catch (Exception e) {
+                                holdsInterface.onError(e);
+                            }
+                        } else {
+                            holdsInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                holdsInterface.onError(e);
+            }
+        });
+    }
+
+    public void changeHoldPickupLocation(Hold hold, String locationId, HoldsInterface holdsInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL(String.format("AJAX/JSON?method=%s&requestId=%s&pickupLocationId=%s", "changePickupLocation", hold.getActionId(), locationId)), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        holdsInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                String body = Objects.requireNonNull(response.body()).string();
+                                if (isJSONValid(body)) {
+                                    JSONObject object = new JSONObject(body).optJSONObject("data");
+                                    if (object != null) {
+                                        if (object.optBoolean("success", false))
+                                            holdsInterface.onChangePickupLocation(hold);
+                                        else
+                                            throw new KirkesClientException("Finna error: " + object.optString("sysMessage", "Unknown"));
+                                    } else
+                                        throw new KirkesClientException("Malformed JSON: " + body);
+                                } else
+                                    throw new KirkesClientException("Unable to parse JSON: " + body);
+                            } catch (IOException e) {
                                 holdsInterface.onError(e);
                             }
                         } else {
@@ -329,5 +376,19 @@ public class FinnaClient {
             }
         });
     }
+
+    private boolean isJSONValid(String test) {
+        try {
+            new JSONObject(test);
+        } catch (JSONException ignored) {
+            try {
+                new JSONArray(test);
+            } catch (JSONException ignored2) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 
 }

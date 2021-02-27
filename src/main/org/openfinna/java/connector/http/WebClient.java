@@ -155,19 +155,6 @@ public class WebClient {
                 }
             };*/
 
-            Interceptor interceptor = chain -> {
-                Request request = chain.request();
-                // try the request
-                Response response = chain.proceed(request);
-                int tryCount = 0;
-                while (!response.isSuccessful() && tryCount < 5) {
-                    tryCount++;
-                    // retry the request
-                    response = chain.proceed(request);
-                }
-                // otherwise just pass the original response on
-                return response;
-            };
             client = new OkHttpClient.Builder()
                     .callTimeout(10, TimeUnit.SECONDS)
                     .cache(cache)
@@ -177,7 +164,7 @@ public class WebClient {
                       .hostnameVerifier(hostnameVerifier)*/
 
                     //.addInterceptor(loggingInterceptor)
-                    .addInterceptor(interceptor).build();
+                    .build();
             nonSessionClient = new OkHttpClient.Builder()
                     .callTimeout(10, TimeUnit.SECONDS)
                     .cache(cache)
@@ -186,7 +173,7 @@ public class WebClient {
                      .hostnameVerifier(hostnameVerifier)*/
 
                     //.addInterceptor(loggingInterceptor)
-                    .addInterceptor(interceptor).build();
+                    .build();
 
             clientNoRed = new OkHttpClient.Builder()
                     .callTimeout(10, TimeUnit.SECONDS)
@@ -199,7 +186,7 @@ public class WebClient {
                      .hostnameVerifier(hostnameVerifier)*/
 
                     //.addInterceptor(loggingInterceptor)
-                    .addInterceptor(interceptor).build();
+                    .build();
             getNonSessionClientNoRed = new OkHttpClient.Builder()
                     .callTimeout(10, TimeUnit.SECONDS)
                     .followSslRedirects(false)
@@ -210,8 +197,7 @@ public class WebClient {
                     .hostnameVerifier(hostnameVerifier)*/
 
                     //.addInterceptor(loggingInterceptor)
-                    .addInterceptor(interceptor).build();
-
+                    .build();
         } catch (Exception e) {
             e.printStackTrace();
         }

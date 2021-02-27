@@ -8,9 +8,7 @@ import org.jsoup.select.Elements;
 import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
-import org.openfinna.java.connector.classes.models.holds.Hold;
-import org.openfinna.java.connector.classes.models.holds.HoldPickupData;
-import org.openfinna.java.connector.classes.models.holds.HoldStatus;
+import org.openfinna.java.connector.classes.models.holds.*;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
 import org.openfinna.java.connector.classes.models.user.LibraryPreferences;
@@ -38,10 +36,12 @@ public class KirkesHTMLParser {
     private static final String dueDateRegex = "((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+";
     private static final String expirationDateRegex = "(((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+)";
     private static final String orderNoRegex = "([0-9]+)";
+    private static final String hashKeyRegex = "^(.*)hashKey=([^#]+)";
     private static final Pattern renewCountPattern = Pattern.compile(renewCountRegex);
     private static final Pattern expirationDatePattern = Pattern.compile(expirationDateRegex);
     private static final Pattern dueDatePattern = Pattern.compile(dueDateRegex);
     private static final Pattern orderNoPattern = Pattern.compile(orderNoRegex);
+    private static final Pattern hashKeyPattern = Pattern.compile(hashKeyRegex);
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
 
     public static String parseCSRF(String html) {
@@ -156,6 +156,82 @@ public class KirkesHTMLParser {
             throw new KirkesClientException("Renew failed");
         }
         throw new KirkesClientException("Something unexpected happened");
+    }
+
+    public static String extractHashKey(String html) {
+        Document document = Jsoup.parse(html);
+        Element hashKeyLink = document.getElementsByClass("placehold btn btn-primary hidden-print").first();
+        if (hashKeyLink != null && hashKeyLink.hasAttr("href")) {
+            String hrefLink = hashKeyLink.attr("href");
+            Matcher hashKeyMatcher = hashKeyPattern.matcher(hrefLink);
+            if (hashKeyMatcher.find()) {
+                return hashKeyMatcher.group(2);
+            }
+        }
+        return null;
+    }
+
+    public static HoldingDetails extractHoldingDetails(String html) {
+        String info = null;
+        List<HoldingDetails.HoldingType> types = new ArrayList<>();
+        Document document = Jsoup.parse(html);
+        // Elements
+        Element groupIdSelect = document.getElementById("requestGroupId");
+        Element infoTextElem = document.getElementsByClass("helptext").first();
+        if (infoTextElem != null)
+            info = infoTextElem.text();
+        if (groupIdSelect != null) {
+            Elements options = groupIdSelect.getElementsByTag("option");
+            for (Element element : options) {
+                String name = element.text().trim();
+                String codeName = null;
+                if (options.hasAttr("value"))
+                    codeName = options.attr("value");
+                types.add(new HoldingDetails.HoldingType(codeName, name));
+            }
+        }
+        return new HoldingDetails(types, info);
+    }
+
+    /**
+     * Get Home library / default
+     *
+     * @param html
+     * @return PickupLocation or null
+     */
+    public static PickupLocation getHomeLibrary(String html) {
+        Document document = Jsoup.parse(html);
+        // Elements
+        Element homeLibElement = document.getElementById("home_library");
+        if (homeLibElement != null) {
+            Element selectedLib = homeLibElement.getElementsByAttributeValue("selected", "selected").first();
+            PickupLocation selected = new PickupLocation(null, null);
+            if (selectedLib != null) {
+                selected.setName(selectedLib.text());
+                if (selectedLib.hasAttr("value"))
+                    selected.setId(selectedLib.attr("value"));
+            }
+            return selected;
+        }
+        return null;
+    }
+
+    public static List<PickupLocation> getHomeLibraries(String html) {
+        Document document = Jsoup.parse(html);
+        // Elements
+        Element homeLibElement = document.getElementById("home_library");
+        Elements libs = homeLibElement.getElementsByTag("option");
+        List<PickupLocation> items = new ArrayList<>();
+        for (Element item : libs) {
+            PickupLocation location = new PickupLocation(null, null);
+            if (item != null) {
+                location.setName(item.text());
+                if (item.hasAttr("value"))
+                    location.setId(item.attr("value"));
+            }
+            items.add(location);
+        }
+        return items;
     }
 
     public static List<Loan> parseLoans(String html) {

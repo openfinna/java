@@ -27,6 +27,10 @@ public class Resource {
         this.image = image;
     }
 
+    public Resource(String id) {
+        this.id = id;
+    }
+
     public String getId() {
         return id;
     }

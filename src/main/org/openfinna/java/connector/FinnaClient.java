@@ -1,5 +1,7 @@
 package org.openfinna.java.connector;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import okhttp3.Call;
 import okhttp3.FormBody;
 import okhttp3.Response;
@@ -8,9 +10,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.openfinna.java.connector.classes.UserAuthentication;
+import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
 import org.openfinna.java.connector.classes.models.holds.Hold;
+import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
+import org.openfinna.java.connector.classes.models.holds.PickupLocation;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.exceptions.InvalidCredentialsException;
 import org.openfinna.java.connector.exceptions.KirkesClientException;
@@ -243,6 +248,121 @@ public class FinnaClient {
         });
     }
 
+    public void getPickupLocations(Resource resource, PickupLocationsInterface pickupLocationsInterface, String type) {
+        if (type == null)
+            type = "0";
+        String finalType = type;
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL(String.format("AJAX/JSON?method=%s&id=%s&requestGroupId=%s", "getRequestGroupPickupLocations", resource.getId(), finalType)), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        pickupLocationsInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                String body = Objects.requireNonNull(response.body()).string();
+                                if (isJSONValid(body)) {
+                                    JSONObject object = new JSONObject(body);
+                                    List<PickupLocation> pickupLocations = new Gson().fromJson(object.optJSONObject("data").optJSONArray("locations").toString(), TypeToken.getParameterized(List.class, PickupLocation.class).getType());
+                                    // Fetching additional details
+                                    fetchHashKey(resource.getId(), new HashKeyInterface() {
+                                        @Override
+                                        public void onFetchHashToken(String hashToken) {
+                                            webClient.getRequest(true, true, webClient.generateURL(String.format("Record/%s/Hold?id=%s&level=title&hashKey=%s&layout=lightbox#tabnav", resource.getId(), resource.getId(), hashToken)), new WebClient.WebClientListener() {
+                                                @Override
+                                                public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                                                    pickupLocationsInterface.onError(e);
+                                                }
+
+                                                @Override
+                                                public void onResponse(@NotNull Response response) {
+                                                    try {
+                                                        HoldingDetails holdingDetails = KirkesHTMLParser.extractHoldingDetails(response.body().string());
+                                                        getDefaultPickupLocation(new PickupLocationsInterface() {
+                                                            @Override
+                                                            public void onFetchPickupLocations(List<PickupLocation> locations, HoldingDetails holdingDetails, PickupLocation defaultLocation) {
+
+                                                            }
+
+                                                            @Override
+                                                            public void onFetchDefaultPickupLocation(PickupLocation defaultLocation, List<PickupLocation> allLocations) {
+                                                                pickupLocationsInterface.onFetchPickupLocations(pickupLocations, holdingDetails, defaultLocation);
+                                                            }
+
+                                                            @Override
+                                                            public void onError(Exception e) {
+                                                                pickupLocationsInterface.onError(e);
+                                                            }
+                                                        });
+                                                    } catch (IOException e) {
+                                                        pickupLocationsInterface.onError(e);
+                                                    }
+                                                }
+                                            });
+                                        }
+
+                                        @Override
+                                        public void onError(Exception e) {
+                                            pickupLocationsInterface.onError(e);
+                                        }
+                                    });
+                                } else
+                                    throw new KirkesClientException("Unable to parse JSON: " + body);
+                            } catch (IOException e) {
+                                pickupLocationsInterface.onError(e);
+                            }
+                        } else {
+                            pickupLocationsInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                pickupLocationsInterface.onError(e);
+            }
+        });
+    }
+
+    public void getDefaultPickupLocation(PickupLocationsInterface holdsInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("MyResearch/Profile"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        holdsInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                String html = response.body().string();
+                                holdsInterface.onFetchDefaultPickupLocation(KirkesHTMLParser.getHomeLibrary(html), KirkesHTMLParser.getHomeLibraries(html));
+                            } catch (Exception e) {
+                                holdsInterface.onError(e);
+                            }
+                        } else {
+                            holdsInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                holdsInterface.onError(e);
+            }
+        });
+    }
+
     public void getAccountDetails(AccountDetailsInterface detailsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -372,6 +492,34 @@ public class FinnaClient {
                     }
                 } else {
                     loginCSRFInterface.onError(new KirkesClientException("Unable to find CSRF token"));
+                }
+            }
+        });
+    }
+
+    private void fetchHashKey(String id, HashKeyInterface hashKeyInterface) {
+        FormBody body = new FormBody.Builder()
+                .add("tab", "holdings").build();
+        webClient.postRequest(true, true, webClient.generateURL("Record/" + id + "/AjaxTab"), body, new WebClient.WebClientListener() {
+            @Override
+            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                hashKeyInterface.onError(e);
+            }
+
+            @Override
+            public void onResponse(@NotNull Response response) {
+                if (response.code() == 200) {
+                    try {
+                        String hashKey = KirkesHTMLParser.extractHashKey(response.body().string());
+                        if (hashKey != null)
+                            hashKeyInterface.onFetchHashToken(hashKey);
+                        else
+                            hashKeyInterface.onError(new KirkesClientException("Unable to find hashToken"));
+                    } catch (Exception e) {
+                        hashKeyInterface.onError(e);
+                    }
+                } else {
+                    hashKeyInterface.onError(new KirkesClientException("Unable to find CSRF token"));
                 }
             }
         });

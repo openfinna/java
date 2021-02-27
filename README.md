@@ -1,4 +1,4 @@
-# openfinna Java Library
+# OpenFinna Java Library
 OpenFinna Java Library, same functionality from the API server, but on-device.
 
 ## To-Do list

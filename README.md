@@ -12,7 +12,7 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 - [x] Resource details
 - [x] Reserve something (i.e. a book)
 - [x] Cancel reservation
-- [ ] Change default pickup location
+- [x] Change default pickup location
 - [x] Get default pickup location (also in Get Pickup Locations request)
 - [ ] Get fines
 - [ ] Get fines payment link

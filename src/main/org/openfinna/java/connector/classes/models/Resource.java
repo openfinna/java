@@ -72,4 +72,9 @@ public class Resource implements Serializable {
     public void setImage(String image) {
         this.image = image;
     }
+
+    @Override
+    public String toString() {
+        return getTitle();
+    }
 }

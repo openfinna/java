@@ -12,12 +12,13 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 - [ ] Resource details (2/3 done)
 - [ ] Reserve something (i.e. a book)
 - [ ] Change default pickup location
-- [ ] Get default pickup location (also in Get Pickup Locations request)
+- [x] Get default pickup location (also in Get Pickup Locations request)
 - [ ] Get fines
 - [ ] Get fines payment link
 - [x] Get user information
 - [ ] Edit user information
 - [ ] Get library cards list
+- [ ] Get default library card id
 - [ ] Support multiple library cards
 - [ ] API Call for attaching a new card to user's account
 - [ ] Change PIN-code

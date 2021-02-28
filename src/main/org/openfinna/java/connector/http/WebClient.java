@@ -17,6 +17,7 @@ public class WebClient {
     private final WebClientCookieJar clientCookieJar = new WebClientCookieJar();
     private String defaultLanguage = "en-gb";
     public static String kirkesBaseURL = "https://finna.fi";
+    public static String finnaBaseUrl = "https://api.finna.fi";
     private OkHttpClient client, nonSessionClient, clientNoRed, getNonSessionClientNoRed;
     private final HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY);
 
@@ -106,6 +107,15 @@ public class WebClient {
         } catch (Exception e) {
             e.printStackTrace();
             return kirkesBaseURL + "/" + path;
+        }
+    }
+
+    public String generateApiURL(String path) {
+        try {
+            return getProtocol(finnaBaseUrl) + "://" + getDomainName(finnaBaseUrl) + "/" + path;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return finnaBaseUrl + "/" + path;
         }
     }
 

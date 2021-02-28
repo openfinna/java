@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import okhttp3.Call;
 import okhttp3.FormBody;
+import okhttp3.HttpUrl;
 import okhttp3.Response;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
@@ -13,6 +14,7 @@ import org.openfinna.java.connector.classes.UserAuthentication;
 import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
+import org.openfinna.java.connector.classes.models.building.Building;
 import org.openfinna.java.connector.classes.models.holds.Hold;
 import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
 import org.openfinna.java.connector.classes.models.holds.PickupLocation;
@@ -22,9 +24,12 @@ import org.openfinna.java.connector.exceptions.KirkesClientException;
 import org.openfinna.java.connector.exceptions.SessionValidationException;
 import org.openfinna.java.connector.http.WebClient;
 import org.openfinna.java.connector.interfaces.*;
+import org.openfinna.java.connector.parser.FinnaJSONParser;
 import org.openfinna.java.connector.parser.KirkesHTMLParser;
+import org.openfinna.java.connector.utils.BuildingUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,6 +37,9 @@ public class FinnaClient {
 
     private final WebClient webClient;
     private UserAuthentication userAuthentication;
+    public static final String[] recordKeys = new String[]{"id", "title", "subTitle", "shortTitle", "cleanIsbn", "edition", "manufacturer", "year", "physicalDescription", "placesOfPublication", "subjects", "generalNotes", "languages", "originalLanguages", "publishers", "awards", "classifications", "authors", "formats"};
+    // Cached values
+    private Building cachedBuilding = null;
 
     public FinnaClient() {
         webClient = new WebClient();
@@ -43,11 +51,13 @@ public class FinnaClient {
 
     public void changeUserAuthentication(UserAuthentication userAuthentication, boolean fetchUserDetails, LoginInterface loginInterface) {
         webClient.getClientCookieJar().clear();
+        cachedBuilding = null;
         login(userAuthentication, fetchUserDetails, loginInterface);
     }
 
     public void login(UserAuthentication userAuthentication, boolean fetchUserDetails, LoginInterface loginInterface) {
         this.userAuthentication = userAuthentication;
+        cachedBuilding = null;
         fetchLoginCSRF(new LoginCSRFInterface() {
             @Override
             public void onFetchCSRFToken(String csrfToken) {
@@ -330,6 +340,278 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get Buildings, from HTML
+     *
+     * @param libraryChainInterface LibraryChainInterface
+     */
+    public void getBuildings(LibraryChainInterface libraryChainInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("Content/organisations"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        libraryChainInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                String html = response.body().string();
+                                libraryChainInterface.onFetchLibraryBuildings(KirkesHTMLParser.getBuildings(html));
+                            } catch (Exception e) {
+                                libraryChainInterface.onError(e);
+                            }
+                        } else {
+                            libraryChainInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                libraryChainInterface.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Get Buildings via AJAX
+     * NOTE: This request is slow, totally about 1-2 seconds
+     *
+     * @param libraryChainInterface LibraryChainInterface
+     */
+    public void getBuildingsViaAjax(LibraryChainInterface libraryChainInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("AJAX/JSON?method=getSideFacets&enabledFacets[]=building"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        libraryChainInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                String body = Objects.requireNonNull(response.body()).string();
+                                if (isJSONValid(body)) {
+                                    JSONObject object = new JSONObject(body);
+                                    List<Building> buildings = new Gson().fromJson(object.optJSONObject("data").optJSONObject("facets").optJSONObject("building").optJSONArray("list").toString(), TypeToken.getParameterized(List.class, Building.class).getType());
+                                    libraryChainInterface.onFetchLibraryBuildings(buildings);
+                                } else
+                                    throw new KirkesClientException("Unable to parse JSON: " + body);
+                            } catch (IOException e) {
+                                libraryChainInterface.onError(e);
+                            }
+                        } else {
+                            libraryChainInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                libraryChainInterface.onError(e);
+            }
+        });
+    }
+
+    private void searchFunc(String query, Building building, boolean rawData, int page, int limit, SearchInterface searchInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                HttpUrl.Builder httpUrlBuilder = new HttpUrl.Builder();
+                httpUrlBuilder.host("example.com").scheme("https");
+                httpUrlBuilder.addQueryParameter("lookfor", query);
+                httpUrlBuilder.addQueryParameter("limit", String.valueOf(limit));
+                httpUrlBuilder.addQueryParameter("page", String.valueOf(page));
+                httpUrlBuilder.addQueryParameter("filter", "~building:\"" + building.getId() + "\"");
+                for (String param : recordKeys) {
+                    httpUrlBuilder.addQueryParameter("field[]", param);
+                }
+                if (rawData)
+                    httpUrlBuilder.addQueryParameter("field[]", "rawData");
+                webClient.getRequest(false, true, webClient.generateApiURL("api/v1/search?" + httpUrlBuilder.build().encodedQuery()), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        searchInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                String body = Objects.requireNonNull(response.body()).string();
+                                if (isJSONValid(body)) {
+                                    JSONObject object = new JSONObject(body);
+                                    if (object.optInt("resultCount") > 0) {
+                                        searchInterface.onSearchResults(object.optInt("resultCount"), FinnaJSONParser.parseResourceInfos(object.optJSONArray("records")));
+                                    } else
+                                        searchInterface.onSearchResults(0, new ArrayList<>());
+                                } else
+                                    throw new KirkesClientException("Unable to parse JSON: " + body);
+                            } catch (IOException e) {
+                                searchInterface.onError(e);
+                            }
+                        } else {
+                            searchInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                searchInterface.onError(e);
+            }
+        });
+    }
+
+    public void search(String query, SearchInterface searchInterface) {
+        System.out.println("Cache status: " + (cachedBuilding != null));
+        if (cachedBuilding != null) {
+            searchFunc(query, cachedBuilding, false, 1, 10, searchInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    search(query, searchInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    searchInterface.onError(e);
+                }
+            });
+        }
+    }
+
+    public void search(String query, boolean rawData, SearchInterface searchInterface) {
+        if (cachedBuilding != null) {
+            searchFunc(query, cachedBuilding, rawData, 1, 10, searchInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    search(query, searchInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    searchInterface.onError(e);
+                }
+            });
+        }
+    }
+
+    public void search(String query, int page, SearchInterface searchInterface) {
+        if (cachedBuilding != null) {
+            searchFunc(query, cachedBuilding, false, page, 10, searchInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    search(query, page, searchInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    searchInterface.onError(e);
+                }
+            });
+        }
+    }
+
+    public void search(String query, int page, boolean rawData, SearchInterface searchInterface) {
+        if (cachedBuilding != null) {
+            searchFunc(query, cachedBuilding, rawData, page, 10, searchInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    search(query, page, searchInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    searchInterface.onError(e);
+                }
+            });
+        }
+    }
+
+    public void search(String query, int page, int limit, SearchInterface searchInterface) {
+        if (cachedBuilding != null) {
+            searchFunc(query, cachedBuilding, false, page, limit, searchInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    search(query, page, limit, searchInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    searchInterface.onError(e);
+                }
+            });
+        }
+    }
+
+    public void search(String query, int page, int limit, boolean rawData, SearchInterface searchInterface) {
+        if (cachedBuilding != null) {
+            searchFunc(query, cachedBuilding, rawData, page, limit, searchInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    search(query, page, limit, rawData, searchInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    searchInterface.onError(e);
+                }
+            });
+        }
+    }
+
     public void getDefaultPickupLocation(PickupLocationsInterface holdsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -363,6 +645,138 @@ public class FinnaClient {
         });
     }
 
+    public void getDefaultBuilding(String cardId, LibraryChainInterface libraryChainInterface) {
+        if (cachedBuilding != null) {
+            libraryChainInterface.onFetchDefaultLibraryBuilding(cachedBuilding);
+            return;
+        }
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("LibraryCards/editCard/" + cardId), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        libraryChainInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                UserType chainDetails = KirkesHTMLParser.getActiveChain(response.body().string());
+                                if (chainDetails != null) {
+                                    getBuildings(new LibraryChainInterface() {
+                                        @Override
+                                        public void onFetchDefaultLibraryBuilding(Building building) {
+
+                                        }
+
+                                        @Override
+                                        public void onFetchLibraryBuildings(List<Building> buildingList) {
+                                            Building building = null;
+                                            String optimizedName = BuildingUtils.optimizeName(chainDetails.getName(), chainDetails.getId());
+                                            for (Building iBuilding : buildingList) {
+                                                String buildingName = BuildingUtils.optimizeName(iBuilding.getName(), "");
+                                                if (optimizedName.equals(buildingName)) {
+                                                    building = iBuilding;
+                                                    break;
+                                                }
+                                            }
+                                            cachedBuilding = building;
+                                            libraryChainInterface.onFetchDefaultLibraryBuilding(building);
+                                        }
+
+                                        @Override
+                                        public void onError(Exception e) {
+                                            libraryChainInterface.onError(e);
+                                        }
+                                    });
+                                } else
+                                    throw new KirkesClientException("Chain not found in card");
+                            } catch (Exception e) {
+                                libraryChainInterface.onError(e);
+                            }
+                        } else {
+                            libraryChainInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                libraryChainInterface.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Because Finna apparently is so lost inside that uses different IDs for basically same thing, we need to fetch this in order to search within the building
+     *
+     * @param libraryChainInterface LibraryChainInterface
+     */
+    public void getDefaultBuilding(LibraryChainInterface libraryChainInterface) {
+        getSelectedCardId(new CardInterface() {
+            @Override
+            public void onFetchCurrentCardId(String cardId) {
+                getDefaultBuilding(cardId, new LibraryChainInterface() {
+
+                    @Override
+                    public void onFetchDefaultLibraryBuilding(Building building) {
+                        libraryChainInterface.onFetchDefaultLibraryBuilding(building);
+                    }
+
+                    @Override
+                    public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        libraryChainInterface.onError(e);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                libraryChainInterface.onError(e);
+            }
+        });
+    }
+
+    public void getSelectedCardId(CardInterface cardInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("MyResearch/Profile"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        cardInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                cardInterface.onFetchCurrentCardId(KirkesHTMLParser.getCurrentCardId(response.body().string()));
+                            } catch (Exception e) {
+                                cardInterface.onError(e);
+                            }
+                        } else {
+                            cardInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                cardInterface.onError(e);
+            }
+        });
+    }
+
     public void getAccountDetails(AccountDetailsInterface detailsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -377,7 +791,29 @@ public class FinnaClient {
                     public void onResponse(@NotNull Response response) {
                         if (response.code() == 200) {
                             try {
-                                detailsInterface.onGetAccountDetails(KirkesHTMLParser.parseUserDetails(response.body().string()));
+                                String html = response.body().string();
+                                // Caching default building
+                                String cardId = KirkesHTMLParser.getCurrentCardId(html);
+                                if (cardId != null) {
+                                    getDefaultBuilding(cardId, new LibraryChainInterface() {
+                                        @Override
+                                        public void onFetchDefaultLibraryBuilding(Building building) {
+                                            cachedBuilding = building;
+                                            detailsInterface.onGetAccountDetails(KirkesHTMLParser.parseUserDetails(html, cachedBuilding));
+                                        }
+
+                                        @Override
+                                        public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                                        }
+
+                                        @Override
+                                        public void onError(Exception e) {
+                                            detailsInterface.onError(e);
+                                        }
+                                    });
+                                } else
+                                    detailsInterface.onGetAccountDetails(KirkesHTMLParser.parseUserDetails(html));
                             } catch (IOException e) {
                                 detailsInterface.onError(e);
                             }
@@ -508,6 +944,10 @@ public class FinnaClient {
                 }
             }
         });
+    }
+
+    public void setCachedBuilding(Building cachedBuilding) {
+        this.cachedBuilding = cachedBuilding;
     }
 
     private void fetchHashKey(String id, HashKeyInterface hashKeyInterface) {

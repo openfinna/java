@@ -8,6 +8,7 @@ import org.jsoup.select.Elements;
 import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
+import org.openfinna.java.connector.classes.models.building.Building;
 import org.openfinna.java.connector.classes.models.holds.*;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
@@ -37,11 +38,13 @@ public class KirkesHTMLParser {
     private static final String expirationDateRegex = "(((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+)";
     private static final String orderNoRegex = "([0-9]+)";
     private static final String hashKeyRegex = "^(.*)hashKey=([^#]+)";
+    private static final String cardIdRegex = "^(.*)id=([^#]+)";
     private static final Pattern renewCountPattern = Pattern.compile(renewCountRegex);
     private static final Pattern expirationDatePattern = Pattern.compile(expirationDateRegex);
     private static final Pattern dueDatePattern = Pattern.compile(dueDateRegex);
     private static final Pattern orderNoPattern = Pattern.compile(orderNoRegex);
     private static final Pattern hashKeyPattern = Pattern.compile(hashKeyRegex);
+    private static final Pattern cardIdPattern = Pattern.compile(cardIdRegex);
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
 
     public static String parseCSRF(String html) {
@@ -109,7 +112,6 @@ public class KirkesHTMLParser {
         }
 
         if (kirkesForm != null) {
-            System.out.println("Kirkes FOUND!");
             Element kirkesEmail = document.getElementsByAttributeValue("name", "email").first();
             Element kirkesNick = document.getElementsByAttributeValue("name", "finna_nickname").first();
 
@@ -123,6 +125,30 @@ public class KirkesHTMLParser {
         user.setLibraryPreferences(libraryPreferences);
         user.setKirkesPreferences(kirkesPreferences);
         return user;
+    }
+
+    public static User parseUserDetails(String html, Building building) {
+        User user = parseUserDetails(html);
+        user.setBuilding(building);
+        return user;
+    }
+
+    public static List<Building> getBuildings(String html) {
+        Document document = Jsoup.parse(html);
+        List<Building> buildings = new ArrayList<>();
+        Elements orgLists = document.getElementsByClass("organisations list-group");
+        if (orgLists.size() > 1) {
+            Element orgList = orgLists.get(1);
+            Elements orgs = orgList.getElementsByAttributeValue("data-link", "0");
+            for (Element org : orgs) {
+                if (org.hasAttr("data-organisation-name") && org.hasAttr("data-organisation")) {
+                    String id = "0/" + org.attr("data-organisation") + "/";
+                    String name = org.attr("data-organisation-name");
+                    buildings.add(new Building(id, name));
+                }
+            }
+        }
+        return buildings;
     }
 
     public static String checkRenewResult(String html, Loan loan) throws KirkesClientException {
@@ -232,6 +258,40 @@ public class KirkesHTMLParser {
             items.add(location);
         }
         return items;
+    }
+
+    /**
+     * Get current account's card id from user info page
+     *
+     * @param html HTML content
+     * @return Card ID or null
+     */
+    public static String getCurrentCardId(String html) {
+        Document document = Jsoup.parse(html);
+        Element passwordChangeButton = document.getElementsByClass("change-password-link").first();
+        if (passwordChangeButton != null) {
+            Element link = passwordChangeButton.getElementsByTag("a").first();
+            if (link != null && link.hasAttr("href")) {
+                Matcher cardIdMatcher = cardIdPattern.matcher(link.attr("href"));
+                if (cardIdMatcher.find()) {
+                    return cardIdMatcher.group(2);
+                }
+            }
+        }
+        return null;
+    }
+
+    public static UserType getActiveChain(String html) {
+        Document document = Jsoup.parse(html);
+        Element libraryList = document.getElementById("login_target");
+        Elements items = libraryList.getElementsByTag("option");
+        for (Element item : items) {
+            if (item.hasAttr("selected") && item.attr("selected").equals("selected")) {
+                // HAH! GOT EM!
+                return new UserType(item.attr("value"), item.text());
+            }
+        }
+        return null;
     }
 
     public static List<Loan> parseLoans(String html) {

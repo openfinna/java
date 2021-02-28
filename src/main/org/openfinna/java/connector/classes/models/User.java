@@ -1,6 +1,7 @@
 package org.openfinna.java.connector.classes.models;
 
 import com.google.gson.annotations.SerializedName;
+import org.openfinna.java.connector.classes.models.building.Building;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
 import org.openfinna.java.connector.classes.models.user.LibraryPreferences;
 
@@ -15,6 +16,8 @@ public class User {
     @SerializedName("kirkesPreferences")
     private KirkesPreferences kirkesPreferences;
 
+    private Building building;
+
     public User(String name, LibraryPreferences libraryPreferences, KirkesPreferences kirkesPreferences) {
         this.name = name;
         this.libraryPreferences = libraryPreferences;
@@ -23,6 +26,10 @@ public class User {
 
     public User() {
 
+    }
+
+    public void setBuilding(Building building) {
+        this.building = building;
     }
 
     public String getName() {

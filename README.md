@@ -9,7 +9,7 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 - [x] Change hold's pickup location
 - [x] Get pickup locations
 - [x] Search
-- [ ] Resource details (2/3 done)
+- [x] Resource details
 - [ ] Reserve something (i.e. a book)
 - [ ] Change default pickup location
 - [x] Get default pickup location (also in Get Pickup Locations request)

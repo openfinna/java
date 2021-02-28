@@ -6,9 +6,10 @@ import org.openfinna.java.connector.classes.models.holds.PickupLocation;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
 import org.openfinna.java.connector.classes.models.user.LibraryPreferences;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class User {
+public class User implements Serializable {
 
     @SerializedName("name")
     private String name;

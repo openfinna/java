@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.libraries;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Image {
+import java.io.Serializable;
+
+public class Image implements Serializable {
     @SerializedName("url")
     private String url;
     @SerializedName("size")

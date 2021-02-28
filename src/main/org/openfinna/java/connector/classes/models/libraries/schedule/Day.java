@@ -1,8 +1,9 @@
 package org.openfinna.java.connector.classes.models.libraries.schedule;
 
+import java.io.Serializable;
 import java.util.Date;
 
-public class Day {
+public class Day implements Serializable {
     private Date date;
     private boolean closed;
     private Schedule schedule;

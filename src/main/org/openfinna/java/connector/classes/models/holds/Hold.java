@@ -2,9 +2,10 @@ package org.openfinna.java.connector.classes.models.holds;
 
 import org.openfinna.java.connector.classes.models.Resource;
 
+import java.io.Serializable;
 import java.util.Date;
 
-public class Hold {
+public class Hold implements Serializable {
     private String id;
     private String actionId;
     private HoldStatus holdStatus;

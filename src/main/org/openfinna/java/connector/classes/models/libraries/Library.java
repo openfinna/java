@@ -2,9 +2,10 @@ package org.openfinna.java.connector.classes.models.libraries;
 
 import org.openfinna.java.connector.classes.models.libraries.schedule.Day;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class Library {
+public class Library implements Serializable {
     private String id;
     private String name;
     private String shortName;

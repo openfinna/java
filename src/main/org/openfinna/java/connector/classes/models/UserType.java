@@ -1,6 +1,8 @@
 package org.openfinna.java.connector.classes.models;
 
-public class UserType {
+import java.io.Serializable;
+
+public class UserType implements Serializable {
     private String id;
     private String name;
 

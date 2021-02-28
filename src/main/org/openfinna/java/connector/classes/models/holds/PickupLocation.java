@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.holds;
 
 import com.google.gson.annotations.SerializedName;
 
-public class PickupLocation {
+import java.io.Serializable;
+
+public class PickupLocation implements Serializable {
 
     @SerializedName("locationID")
     private String id;

@@ -1,9 +1,10 @@
 package org.openfinna.java.connector.classes.models.fines;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Fines {
+public class Fines implements Serializable {
     private String currency;
     private double totalDue;
     private double payableDue;

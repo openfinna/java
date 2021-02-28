@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.libraries;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Link {
+import java.io.Serializable;
+
+public class Link implements Serializable {
     @SerializedName("url")
     private String url;
     @SerializedName("name")

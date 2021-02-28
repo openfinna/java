@@ -1,8 +1,9 @@
 package org.openfinna.java.connector.classes.models.fines;
 
+import java.io.Serializable;
 import java.util.Date;
 
-public class Fine {
+public class Fine implements Serializable {
     private double price = -1;
     private Date registrationDate;
     private String description;

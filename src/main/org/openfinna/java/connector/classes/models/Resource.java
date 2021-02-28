@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Resource {
+import java.io.Serializable;
+
+public class Resource implements Serializable {
 
     @SerializedName("id")
     private String id;

@@ -1,8 +1,9 @@
 package org.openfinna.java.connector.classes.models.resource;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class Author {
+public class Author implements Serializable {
     private String name;
     private List<String> roles;
     private String type;

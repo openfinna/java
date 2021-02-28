@@ -1,8 +1,9 @@
 package org.openfinna.java.connector.classes.models.holds;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class HoldingDetails {
+public class HoldingDetails implements Serializable {
     private List<HoldingType> holdingTypes;
     private String info;
 
@@ -27,7 +28,7 @@ public class HoldingDetails {
         this.info = info;
     }
 
-    public static class HoldingType {
+    public static class HoldingType implements Serializable {
         private String id;
         private String name;
 

@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.resource;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Format {
+import java.io.Serializable;
+
+public class Format implements Serializable {
     @SerializedName("value")
     private String id;
     @SerializedName("translated")

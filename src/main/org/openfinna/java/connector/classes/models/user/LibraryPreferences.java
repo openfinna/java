@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.user;
 
 import com.google.gson.annotations.SerializedName;
 
-public class LibraryPreferences {
+import java.io.Serializable;
+
+public class LibraryPreferences implements Serializable {
 
     @SerializedName("fullName")
     private String fullName;

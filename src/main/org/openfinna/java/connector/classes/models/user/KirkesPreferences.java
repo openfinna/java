@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.user;
 
 import com.google.gson.annotations.SerializedName;
 
-public class KirkesPreferences {
+import java.io.Serializable;
+
+public class KirkesPreferences implements Serializable {
 
     @SerializedName("email")
     private String email;

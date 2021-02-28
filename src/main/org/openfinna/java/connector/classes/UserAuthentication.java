@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes;
 
 import org.openfinna.java.connector.classes.models.UserType;
 
-public class UserAuthentication {
+import java.io.Serializable;
+
+public class UserAuthentication implements Serializable {
     private UserType userType;
     private String username;
     private String password;

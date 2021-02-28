@@ -4,9 +4,10 @@ import org.json.JSONObject;
 import org.openfinna.java.connector.classes.models.resource.Author;
 import org.openfinna.java.connector.classes.models.resource.Format;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class ResourceInfo {
+public class ResourceInfo implements Serializable {
 
     private String id;
     private String title;

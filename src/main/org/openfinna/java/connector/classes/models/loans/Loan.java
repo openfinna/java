@@ -3,9 +3,10 @@ package org.openfinna.java.connector.classes.models.loans;
 import com.google.gson.annotations.SerializedName;
 import org.openfinna.java.connector.classes.models.Resource;
 
+import java.io.Serializable;
 import java.util.Date;
 
-public class Loan {
+public class Loan implements Serializable {
 
     @SerializedName("id")
     private String id;

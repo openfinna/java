@@ -1,6 +1,8 @@
 package org.openfinna.java.connector.classes.models.libraries;
 
-public class LibraryLocation {
+import java.io.Serializable;
+
+public class LibraryLocation implements Serializable {
     private String street;
     private String zipcode;
     private String city;
@@ -66,7 +68,7 @@ public class LibraryLocation {
         this.coordinates = coordinates;
     }
 
-    public static class Coordinates {
+    public static class Coordinates implements Serializable {
         private double lat;
         private double lon;
 

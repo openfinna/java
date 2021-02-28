@@ -2,7 +2,9 @@ package org.openfinna.java.connector.classes.models.building;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Building {
+import java.io.Serializable;
+
+public class Building implements Serializable {
     @SerializedName("value")
     private String id;
     @SerializedName("displayText")

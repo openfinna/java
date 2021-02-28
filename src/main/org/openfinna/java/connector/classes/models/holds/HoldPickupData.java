@@ -1,6 +1,8 @@
 package org.openfinna.java.connector.classes.models.holds;
 
-public class HoldPickupData {
+import java.io.Serializable;
+
+public class HoldPickupData implements Serializable {
     private String pickupLocation;
     private int reservationNumber;
 

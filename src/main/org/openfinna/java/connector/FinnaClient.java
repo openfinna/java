@@ -115,7 +115,7 @@ public class FinnaClient {
                                             public void onGetAccountDetails(User user) {
                                                 FinnaClient.this.userAuthentication.setSession(webClient.getClientCookieJar().getSession());
                                                 changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, user, null);
-                                                loginInterface.onLogin(FinnaClient.this.userAuthentication, user);
+                                                loginInterface.onLogin(user);
                                             }
 
                                             @Override
@@ -126,7 +126,7 @@ public class FinnaClient {
                                     } else {
                                         FinnaClient.this.userAuthentication.setSession(webClient.getClientCookieJar().getSession());
                                         changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, null, null);
-                                        loginInterface.onLogin(FinnaClient.this.userAuthentication, null);
+                                        loginInterface.onLogin(null);
                                     }
                                 } else {
                                     loginInterface.onError(new InvalidCredentialsException());
@@ -1388,7 +1388,7 @@ public class FinnaClient {
                     }
 
                     @Override
-                    public void onLogin(UserAuthentication userAuthentication, User user) {
+                    public void onLogin(User user) {
                         validateSession(new SessionValidationInterface() {
                             @Override
                             public void onSessionValidated() {
@@ -1425,7 +1425,7 @@ public class FinnaClient {
                         }
 
                         @Override
-                        public void onLogin(UserAuthentication userAuthentication, User user) {
+                        public void onLogin(User user) {
                             validationInterface.onSessionValidated();
                         }
                     });

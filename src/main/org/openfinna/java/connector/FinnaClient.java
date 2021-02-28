@@ -19,6 +19,7 @@ import org.openfinna.java.connector.classes.models.holds.Hold;
 import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
 import org.openfinna.java.connector.classes.models.holds.PickupLocation;
 import org.openfinna.java.connector.classes.models.loans.Loan;
+import org.openfinna.java.connector.exceptions.FinnaNotFoundException;
 import org.openfinna.java.connector.exceptions.InvalidCredentialsException;
 import org.openfinna.java.connector.exceptions.KirkesClientException;
 import org.openfinna.java.connector.exceptions.SessionValidationException;
@@ -56,6 +57,8 @@ public class FinnaClient {
     }
 
     public void login(UserAuthentication userAuthentication, boolean fetchUserDetails, LoginInterface loginInterface) {
+        if (userAuthentication == null)
+            throw new KirkesClientException("UserAuthentication not provided!");
         this.userAuthentication = userAuthentication;
         cachedBuilding = null;
         fetchLoginCSRF(new LoginCSRFInterface() {
@@ -469,6 +472,84 @@ public class FinnaClient {
             @Override
             public void onError(Exception e) {
                 searchInterface.onError(e);
+            }
+        });
+    }
+
+    /**
+     * @param id                    ID of resource
+     * @param resourceInfoInterface callback
+     */
+    public void resourceInfo(String id, ResourceInfoInterface resourceInfoInterface) {
+        resourceInfoFunc(id, false, resourceInfoInterface);
+    }
+
+    /**
+     * Get resource info
+     *
+     * @param resource              Resource to get ID from
+     * @param resourceInfoInterface callback
+     */
+    public void resourceInfo(Resource resource, ResourceInfoInterface resourceInfoInterface) {
+        resourceInfoFunc(resource.getId(), false, resourceInfoInterface);
+    }
+
+    /**
+     * Get resource info
+     *
+     * @param id                    ID of resource
+     * @param rawData               Whether to include raw data object or not
+     * @param resourceInfoInterface callback
+     */
+    public void resourceInfo(String id, boolean rawData, ResourceInfoInterface resourceInfoInterface) {
+        resourceInfoFunc(id, rawData, resourceInfoInterface);
+    }
+
+    /**
+     * Get resource info
+     *
+     * @param resource              Resource to get ID from
+     * @param rawData               Whether to include raw data object
+     * @param resourceInfoInterface callback
+     */
+    public void resourceInfo(Resource resource, boolean rawData, ResourceInfoInterface resourceInfoInterface) {
+        resourceInfoFunc(resource.getId(), rawData, resourceInfoInterface);
+    }
+
+    private void resourceInfoFunc(String id, boolean rawData, ResourceInfoInterface resourceInfoInterface) {
+        HttpUrl.Builder httpUrlBuilder = new HttpUrl.Builder();
+        httpUrlBuilder.host("example.com").scheme("https");
+        httpUrlBuilder.addQueryParameter("id", id);
+        for (String param : recordKeys) {
+            httpUrlBuilder.addQueryParameter("field[]", param);
+        }
+        if (rawData)
+            httpUrlBuilder.addQueryParameter("field[]", "rawData");
+        webClient.getRequest(false, true, webClient.generateApiURL("api/v1/record?" + httpUrlBuilder.build().encodedQuery()), new WebClient.WebClientListener() {
+            @Override
+            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                resourceInfoInterface.onError(e);
+            }
+
+            @Override
+            public void onResponse(@NotNull Response response) {
+                if (response.code() == 200) {
+                    try {
+                        String body = Objects.requireNonNull(response.body()).string();
+                        if (isJSONValid(body)) {
+                            JSONObject object = new JSONObject(body);
+                            if (object.optInt("resultCount") > 0) {
+                                resourceInfoInterface.onResourceInfo(FinnaJSONParser.parseResourceInfo(object.optJSONArray("records").getJSONObject(0)));
+                            } else
+                                throw new FinnaNotFoundException("Resource not found with id " + id);
+                        } else
+                            throw new KirkesClientException("Unable to parse JSON: " + body);
+                    } catch (IOException e) {
+                        resourceInfoInterface.onError(e);
+                    }
+                } else {
+                    resourceInfoInterface.onError(new KirkesClientException("Response code " + response.code()));
+                }
             }
         });
     }

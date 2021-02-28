@@ -29,6 +29,9 @@ sourceSets {
     }
 }
 
+group 'org.openfinna.java'
+version '1.0'
+
 
 dependencies {
     // This dependency is exported to consumers, that is to say found on their compile classpath.

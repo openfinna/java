@@ -17,4 +17,4 @@ include 'services:webservice'
 include 'java'
 include 'java.test'
 
-rootProject.name = 'org.openkirkes.java'
+rootProject.name = 'org.openfinna.java'

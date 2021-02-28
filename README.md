@@ -18,7 +18,7 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 - [x] Get user information
 - [ ] Edit user information
 - [ ] Get library cards list
-- [ ] Get default library card id
+- [x] Get default library card id
 - [ ] Support multiple library cards
 - [ ] API Call for attaching a new card to user's account
 - [ ] Change PIN-code

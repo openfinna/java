@@ -2,10 +2,7 @@ package org.openfinna.java.connector;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import okhttp3.Call;
-import okhttp3.FormBody;
-import okhttp3.HttpUrl;
-import okhttp3.Response;
+import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -26,6 +23,7 @@ import org.openfinna.java.connector.exceptions.KirkesClientException;
 import org.openfinna.java.connector.exceptions.SessionValidationException;
 import org.openfinna.java.connector.http.WebClient;
 import org.openfinna.java.connector.interfaces.*;
+import org.openfinna.java.connector.interfaces.auth.AuthenticationChangeListener;
 import org.openfinna.java.connector.parser.FinnaJSONParser;
 import org.openfinna.java.connector.parser.KirkesHTMLParser;
 import org.openfinna.java.connector.utils.BuildingUtils;
@@ -43,9 +41,28 @@ public class FinnaClient {
     public static final String[] recordKeys = new String[]{"id", "title", "subTitle", "shortTitle", "cleanIsbn", "edition", "manufacturer", "year", "physicalDescription", "placesOfPublication", "subjects", "generalNotes", "languages", "originalLanguages", "publishers", "awards", "classifications", "authors", "formats"};
     // Cached values
     private Building cachedBuilding = null;
+    private AuthenticationChangeListener changeListener;
 
     public FinnaClient() {
         webClient = new WebClient();
+    }
+
+    public FinnaClient(AuthenticationChangeListener changeListener) {
+        webClient = new WebClient();
+        this.changeListener = changeListener;
+    }
+
+    public FinnaClient(UserAuthentication userAuthentication, AuthenticationChangeListener changeListener) {
+        webClient = new WebClient();
+        this.userAuthentication = userAuthentication;
+        if (this.userAuthentication.getSession() != null)
+            webClient.getClientCookieJar().addCookie(Cookie.parse(HttpUrl.get(webClient.generateURL("")), "PHPSESSID=" + this.userAuthentication.getSession()));
+        this.changeListener = changeListener;
+    }
+
+    public FinnaClient(WebClient webClient, AuthenticationChangeListener changeListener) {
+        this.webClient = webClient;
+        this.changeListener = changeListener;
     }
 
     public FinnaClient(WebClient webClient) {
@@ -96,6 +113,8 @@ public class FinnaClient {
                                         getAccountDetails(new AccountDetailsInterface() {
                                             @Override
                                             public void onGetAccountDetails(User user) {
+                                                FinnaClient.this.userAuthentication.setSession(webClient.getClientCookieJar().getSession());
+                                                changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, user, null);
                                                 loginInterface.onLogin(user);
                                             }
 
@@ -105,6 +124,8 @@ public class FinnaClient {
                                             }
                                         });
                                     } else {
+                                        FinnaClient.this.userAuthentication.setSession(webClient.getClientCookieJar().getSession());
+                                        changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, null, null);
                                         loginInterface.onLogin(null);
                                     }
                                 } else {
@@ -1164,6 +1185,7 @@ public class FinnaClient {
                                                 }
                                             }
                                             cachedBuilding = building;
+                                            changeListener.onAuthenticationChange(userAuthentication, null, building);
                                             libraryChainInterface.onFetchDefaultLibraryBuilding(building);
                                         }
 

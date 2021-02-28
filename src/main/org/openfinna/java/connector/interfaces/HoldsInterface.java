@@ -9,9 +9,14 @@ public interface HoldsInterface {
 
     /**
      * Callback for pickup location changing
+     *
      * @param hold Hold of which location changed (notice! new location is not included, it is the same object you set as a parameter)
      */
     void onChangePickupLocation(Hold hold);
+
+    void onMakeHold();
+
+    void onCancelHold();
 
     void onError(Exception e);
 }

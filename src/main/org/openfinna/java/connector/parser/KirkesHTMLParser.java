@@ -9,6 +9,8 @@ import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
 import org.openfinna.java.connector.classes.models.building.Building;
+import org.openfinna.java.connector.classes.models.fines.Fine;
+import org.openfinna.java.connector.classes.models.fines.Fines;
 import org.openfinna.java.connector.classes.models.holds.*;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.classes.models.user.KirkesPreferences;
@@ -39,12 +41,14 @@ public class KirkesHTMLParser {
     private static final String orderNoRegex = "([0-9]+)";
     private static final String hashKeyRegex = "^(.*)hashKey=([^#]+)";
     private static final String cardIdRegex = "^(.*)id=([^#]+)";
+    private static final String priceRegex = "^^[^\\d]*(\\d+|\\d+((,|\\.)\\d{1,2}))(\\s|[a-zA-Z)]|€|$).*";
     private static final Pattern renewCountPattern = Pattern.compile(renewCountRegex);
     private static final Pattern expirationDatePattern = Pattern.compile(expirationDateRegex);
     private static final Pattern dueDatePattern = Pattern.compile(dueDateRegex);
     private static final Pattern orderNoPattern = Pattern.compile(orderNoRegex);
     private static final Pattern hashKeyPattern = Pattern.compile(hashKeyRegex);
     private static final Pattern cardIdPattern = Pattern.compile(cardIdRegex);
+    private static final Pattern pricePattern = Pattern.compile(priceRegex);
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
 
     public static String parseCSRF(String html) {
@@ -240,6 +244,83 @@ public class KirkesHTMLParser {
             return selected;
         }
         return null;
+    }
+
+    public static boolean getHomeLibraryResult(String html) {
+        Document document = Jsoup.parse(html);
+        return document.getElementsByClass("flash-message alert alert-success").size() > 0;
+    }
+
+    public static Fines extractFines(String html) {
+        Document document = Jsoup.parse(html);
+        Fines fines = new Fines();
+        fines.setCurrency("€");
+        Element opdElement = document.getElementsByClass("text-right online-payment-data").first();
+        if (opdElement != null) {
+            Element amount = opdElement.getElementsByClass("amount").first();
+            if (amount != null) {
+                Matcher amountMatcher = pricePattern.matcher(amount.text());
+                if (amountMatcher.find()) {
+                    String priceText = amountMatcher.group(1).replace(",", ".");
+                    double priceDouble = Double.parseDouble(priceText);
+                    fines.setPayableDue(priceDouble);
+                }
+            }
+        }
+
+        Element finesTable = document.getElementsByClass("table table-striped useraccount-table online-payment").first();
+        Element totalElement = document.getElementsByClass("total-balance").first();
+        if (totalElement != null) {
+            Element amount = totalElement.getElementsByClass("amount").first();
+            if (amount != null) {
+                Matcher amountMatcher = pricePattern.matcher(amount.text());
+                if (amountMatcher.find()) {
+                    String priceText = amountMatcher.group(1).replace(",", ".");
+                    double priceDouble = Double.parseDouble(priceText);
+                    fines.setTotalDue(priceDouble);
+                }
+            }
+        }
+
+        if (finesTable != null) {
+            Elements fineItems = finesTable.getElementsByTag("tr");
+            for (Element fineItem : fineItems) {
+                if (!fineItem.hasAttr("class") && !fineItem.hasClass("headers")) {
+                    Fine fine = new Fine();
+                    Element balanceElem = fineItem.getElementsByClass("balance").first();
+                    Element dateElem = fineItem.getElementsByClass("hidden-xs").first();
+                    if (balanceElem != null) {
+                        Matcher priceSearch = pricePattern.matcher(balanceElem.text());
+                        if (priceSearch.find()) {
+                            String priceText = priceSearch.group(1).replace(",", ".");
+                            double priceDouble = Double.parseDouble(priceText);
+                            fine.setPrice(priceDouble);
+                        }
+                    }
+                    if (dateElem != null) {
+                        Matcher dateRegex = expirationDatePattern.matcher(dateElem.text());
+                        if (dateRegex.find()) {
+                            String dateTxt = dateRegex.group(1);
+                            try {
+                                Date date = dateFormat.parse(dateTxt);
+                                fine.setRegistrationDate(date);
+                            } catch (ParseException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                    Elements elements = fineItem.getElementsByTag("td");
+                    if (elements.size() > 2) {
+                        Element descElement = elements.get(3);
+                        fine.setDescription(descElement.text());
+                    }
+                    if (fine.getPrice() != -1) {
+                        fines.getFines().add(fine);
+                    }
+                }
+            }
+        }
+        return fines;
     }
 
     public static List<PickupLocation> getHomeLibraries(String html) {

@@ -5,16 +5,20 @@ import com.google.gson.reflect.TypeToken;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.openfinna.java.connector.classes.ResourceInfo;
+import org.openfinna.java.connector.classes.models.libraries.*;
+import org.openfinna.java.connector.classes.models.libraries.schedule.Day;
+import org.openfinna.java.connector.classes.models.libraries.schedule.Schedule;
 import org.openfinna.java.connector.classes.models.resource.Author;
 import org.openfinna.java.connector.classes.models.resource.Format;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 public class FinnaJSONParser {
 
     private static final String IMG_TEMPLATE = "https://www.finna.fi/Cover/Show?recordid=%s&isbn=%s";
+    private static final SimpleDateFormat scheduleDateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
 
     public static ResourceInfo parseResourceInfo(JSONObject jsonObject) {
         // Init params
@@ -86,6 +90,79 @@ public class FinnaJSONParser {
             }
         }
         return new ResourceInfo(id, title, shortTitle, subTitle, topics, publicationYear, isbn, authors, formats, generalNotes, languages, originalLanguages, physicalDescription, edition, manufacturer, publishers, publicationPlace, ykl, awards, imageLink, rawData);
+    }
+
+    public static Library parseLibrary(JSONObject libraryJSON) throws ParseException {
+        String id = libraryJSON.optString("id");
+        String name = libraryJSON.optString("name");
+        String shortName = libraryJSON.optString("shortName");
+        String slug = libraryJSON.optString("slug");
+        String slogan = libraryJSON.optString("slogan");
+        List<Link> links = new ArrayList<>();
+        List<Image> images = new ArrayList<>();
+        List<String> services = parseJSONStringArray("services", libraryJSON);
+        List<String> scheduleNotices = parseJSONStringArray("scheduleDescriptions", libraryJSON);
+        if (libraryJSON.has("links")) {
+            List<Link> parsedLinks = new Gson().fromJson(libraryJSON.getJSONArray("links").toString(), TypeToken.getParameterized(List.class, Link.class).getType());
+            links.addAll(parsedLinks);
+        }
+        LibraryType type = LibraryType.MUNICIPAL;
+        if (libraryJSON.optString("type", "").equals("mobile"))
+            type = LibraryType.MOBILE;
+        String email = libraryJSON.optString("email", "");
+        String homepage = libraryJSON.optString("homepage", "");
+        LibraryLocation libraryLocation = null;
+        if (libraryJSON.has("address")) {
+            JSONObject address = libraryJSON.optJSONObject("address");
+
+            LibraryLocation.Coordinates coordinates = null;
+            JSONObject coordinatesObject = address.optJSONObject("coordinates");
+            if (coordinatesObject != null) {
+                coordinates = new LibraryLocation.Coordinates(coordinatesObject.optDouble("lat"), coordinatesObject.optDouble("lon"));
+            }
+            libraryLocation = new LibraryLocation(address.optString("street"), address.optString("zipcode"), address.optString("city"), libraryJSON.optString("mapUrl"), libraryJSON.optString("routeUrl"), coordinates);
+        }
+        List<Day> librarySchedule = new ArrayList<>();
+        if (libraryJSON.has("openTimes") && libraryJSON.optJSONObject("openTimes").has("schedules"))
+            librarySchedule.addAll(parseLibrarySchedule(libraryJSON.optJSONObject("openTimes").optJSONArray("schedules")));
+        return new Library(id, name, shortName, slug, type, email, homepage, libraryLocation, images, links, services, scheduleNotices, slogan, librarySchedule);
+    }
+
+    public static List<Day> parseLibrarySchedule(JSONArray scheduleJSON) throws ParseException {
+        List<Day> days = new ArrayList<>();
+        for (int i = 0; i < scheduleJSON.length(); i++) {
+            JSONObject day = scheduleJSON.optJSONObject(i);
+            Date date = scheduleDateFormat.parse(day.optString("date", "01.01.") + Calendar.getInstance().get(Calendar.YEAR));
+            boolean closed = day.optBoolean("closed", false);
+            Schedule schedule = null;
+            if (!closed) {
+                JSONObject times = day.optJSONArray("times").optJSONObject(0);
+                int opensHour = times.optInt("opens");
+                int closesHour = times.optInt("closes");
+                boolean selfService = times.optBoolean("selfService");
+
+                Calendar opensCalendar = Calendar.getInstance();
+                opensCalendar.setTime(date);
+                opensCalendar.set(Calendar.HOUR, opensHour);
+                opensCalendar.set(Calendar.MINUTE, 0);
+
+                Calendar closesCalendar = Calendar.getInstance();
+                closesCalendar.setTime(date);
+                closesCalendar.set(Calendar.HOUR, closesHour);
+                closesCalendar.set(Calendar.MINUTE, 0);
+                schedule = new Schedule(opensCalendar.getTime(), closesCalendar.getTime(), selfService);
+            }
+            days.add(new Day(date, closed, schedule));
+        }
+        return days;
+    }
+
+    public static List<Library> parseLibraries(JSONArray librariesJSON) throws ParseException {
+        List<Library> libraries = new ArrayList<>();
+        for (int i = 0; i < librariesJSON.length(); i++) {
+            libraries.add(parseLibrary(librariesJSON.optJSONObject(i)));
+        }
+        return libraries;
     }
 
     public static List<ResourceInfo> parseResourceInfos(JSONArray resourcesJSON) {

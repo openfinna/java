@@ -18,6 +18,7 @@ import org.openfinna.java.connector.classes.models.building.Building;
 import org.openfinna.java.connector.classes.models.holds.Hold;
 import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
 import org.openfinna.java.connector.classes.models.holds.PickupLocation;
+import org.openfinna.java.connector.classes.models.libraries.Library;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.exceptions.FinnaNotFoundException;
 import org.openfinna.java.connector.exceptions.InvalidCredentialsException;
@@ -30,6 +31,7 @@ import org.openfinna.java.connector.parser.KirkesHTMLParser;
 import org.openfinna.java.connector.utils.BuildingUtils;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -56,6 +58,13 @@ public class FinnaClient {
         login(userAuthentication, fetchUserDetails, loginInterface);
     }
 
+    /**
+     * Sign in with user authentication
+     *
+     * @param userAuthentication User Authentication (includes username, password and type)
+     * @param fetchUserDetails   Whether to fetch user details or not
+     * @param loginInterface     callback
+     */
     public void login(UserAuthentication userAuthentication, boolean fetchUserDetails, LoginInterface loginInterface) {
         if (userAuthentication == null)
             throw new KirkesClientException("UserAuthentication not provided!");
@@ -117,6 +126,11 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get all loans as list
+     *
+     * @param loansInterface callback
+     */
     public void getLoans(LoansInterface loansInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -149,6 +163,12 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Renew a loan
+     *
+     * @param loan           Loan
+     * @param loansInterface callback
+     */
     public void renewLoan(Loan loan, LoansInterface loansInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -186,6 +206,154 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Make a hold of book
+     *
+     * @param resource       Resource
+     * @param pickupLocation Pickup Location
+     * @param holdingType    Holding Type
+     * @param holdsInterface callback
+     */
+    public void makeHold(Resource resource, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, HoldsInterface holdsInterface) {
+        makeHoldFunc(resource.getId(), pickupLocation, holdingType, holdsInterface);
+    }
+
+    /**
+     * Make a hold of book
+     *
+     * @param id             ID of resource
+     * @param pickupLocation Pickup location
+     * @param holdingType    HoldingDetails holdingType
+     * @param holdsInterface callback
+     */
+    public void makeHold(String id, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, HoldsInterface holdsInterface) {
+        makeHoldFunc(id, pickupLocation, holdingType, holdsInterface);
+    }
+
+    private void makeHoldFunc(String id, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, HoldsInterface holdsInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                fetchHashKey(id, new HashKeyInterface() {
+                    @Override
+                    public void onFetchHashToken(String hashToken) {
+                        FormBody postData = new FormBody.Builder()
+                                .add("gatheredDetails[requestGroupId]", holdingType.getId())
+                                .add("gatheredDetails[pickUpLocation]", pickupLocation.getId())
+                                .add("layout", "lightbox")
+                                .add("placeHold", "")
+                                .build();
+                        webClient.postRequest(true, false, webClient.generateURL("Record/" + id + "/Hold?id=" + id + "&level=title&hashKey=" + hashToken + "&layout=lightbox"), postData, new WebClient.WebClientListener() {
+                            @Override
+                            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                                holdsInterface.onError(e);
+                            }
+
+                            @Override
+                            public void onResponse(@NotNull Response response) {
+                                if (response.code() == 302) {
+                                    holdsInterface.onMakeHold();
+                                } else {
+                                    holdsInterface.onError(new KirkesClientException("Unable to make a hold, " + response.code()));
+                                }
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        holdsInterface.onError(e);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                holdsInterface.onError(e);
+            }
+        });
+    }
+
+    public void changeDefaultPickupLocation(PickupLocation pickupLocation, PickupLocationChangeInterface pickupLocationChangeInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                FormBody postData = new FormBody.Builder()
+                        .add("home_library", pickupLocation.getId())
+                        .build();
+                webClient.postRequest(true, false, webClient.generateURL("MyResearch/Profile"), postData, new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        pickupLocationChangeInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        try {
+                            if (response.code() == 200) {
+                                if (KirkesHTMLParser.getHomeLibraryResult(response.body().string())) {
+                                    pickupLocationChangeInterface.onPickupLocationChange(pickupLocation);
+                                } else
+                                    pickupLocationChangeInterface.onError(new KirkesClientException("Default pickup location changing failed"));
+                            } else {
+                                pickupLocationChangeInterface.onError(new KirkesClientException("Unable to make a hold, " + response.code()));
+                            }
+                        } catch (IOException e) {
+                            pickupLocationChangeInterface.onError(e);
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                pickupLocationChangeInterface.onError(e);
+            }
+        });
+    }
+
+    public void cancelHold(Hold hold, HoldsInterface holdsInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                FormBody postData = new FormBody.Builder()
+                        .add("cancelSelected", "1")
+                        .add("confirm", "")
+                        .add("cancelSelectedIDS[]", hold.getActionId())
+                        .build();
+                webClient.postRequest(true, false, webClient.generateURL("MyResearch/Holds"), postData, new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        holdsInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        try {
+                            if (response.code() == 200 && KirkesHTMLParser.getHomeLibraryResult(response.body().string())) {
+                                holdsInterface.onCancelHold();
+                            } else {
+                                holdsInterface.onError(new KirkesClientException("Unable to make a hold, " + response.code()));
+                            }
+                        } catch (IOException e) {
+                            holdsInterface.onError(e);
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                holdsInterface.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Get all current holds as list
+     *
+     * @param holdsInterface callback
+     */
     public void getHolds(HoldsInterface holdsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -218,11 +386,18 @@ public class FinnaClient {
         });
     }
 
-    public void changeHoldPickupLocation(Hold hold, String locationId, HoldsInterface holdsInterface) {
+    /**
+     * Change hold's pickup location
+     *
+     * @param hold           Hold
+     * @param pickupLocation Pickup Location
+     * @param holdsInterface callback
+     */
+    public void changeHoldPickupLocation(Hold hold, PickupLocation pickupLocation, HoldsInterface holdsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
             public void onPreCheck() {
-                webClient.getRequest(true, true, webClient.generateURL(String.format("AJAX/JSON?method=%s&requestId=%s&pickupLocationId=%s", "changePickupLocation", hold.getActionId(), locationId)), new WebClient.WebClientListener() {
+                webClient.getRequest(true, true, webClient.generateURL(String.format("AJAX/JSON?method=%s&requestId=%s&pickupLocationId=%s", "changePickupLocation", hold.getActionId(), pickupLocation.getId())), new WebClient.WebClientListener() {
                     @Override
                     public void onFailed(@NotNull Call call, @NotNull IOException e) {
                         holdsInterface.onError(e);
@@ -261,6 +436,13 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get all pickup locations available for a resource
+     *
+     * @param resource                 Resource
+     * @param pickupLocationsInterface callback
+     * @param type                     type
+     */
     public void getPickupLocations(Resource resource, PickupLocationsInterface pickupLocationsInterface, String type) {
         if (type == null)
             type = "0";
@@ -425,6 +607,130 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get libraries
+     *
+     * @param librariesInterface LibraryChainInterface
+     */
+    public void getLibraries(LibrariesInterface librariesInterface) {
+        if (cachedBuilding != null) {
+            getLibrariesFunc(librariesInterface);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    cachedBuilding = building;
+                    getLibrariesFunc(librariesInterface);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    librariesInterface.onError(e);
+                }
+            });
+        }
+    }
+
+    private void getLibrariesFunc(LibrariesInterface librariesInterface) {
+        webClient.getRequest(false, true, webClient.generateURL("AJAX/JSON?method=getOrganisationInfo&parent[id]=" + cachedBuilding.getRawId() + "&params[action]=consortium"), new WebClient.WebClientListener() {
+            @Override
+            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                librariesInterface.onError(e);
+            }
+
+            @Override
+            public void onResponse(@NotNull Response response) {
+                if (response.code() == 200) {
+                    try {
+                        String body = Objects.requireNonNull(response.body()).string();
+                        if (isJSONValid(body)) {
+                            JSONObject object = new JSONObject(body);
+                            if (object.opt("data") instanceof Boolean) {
+                                throw new KirkesClientException("Invalid building!");
+                            }
+                            List<Library> libraries = FinnaJSONParser.parseLibraries(object.optJSONObject("data").optJSONArray("list"));
+                            librariesInterface.onGetLibraries(libraries);
+                        } else
+                            throw new KirkesClientException("Unable to parse JSON: " + body);
+                    } catch (IOException | ParseException e) {
+                        librariesInterface.onError(e);
+                    }
+                } else {
+                    librariesInterface.onError(new KirkesClientException("Response code " + response.code()));
+                }
+            }
+        });
+    }
+
+    private void getLibraryFunc(LibrariesInterface librariesInterface, Library library) {
+        webClient.getRequest(false, true, webClient.generateURL("AJAX/JSON?method=getOrganisationInfo&parent[id]=" + cachedBuilding.getRawId() + "&params[action]=details&params[fullDetails]=1&params[allServices]&params[id]=" + library.getId()), new WebClient.WebClientListener() {
+            @Override
+            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                librariesInterface.onError(e);
+            }
+
+            @Override
+            public void onResponse(@NotNull Response response) {
+                if (response.code() == 200) {
+                    try {
+                        String body = Objects.requireNonNull(response.body()).string();
+                        if (isJSONValid(body)) {
+                            JSONObject object = new JSONObject(body);
+                            Library detailLibrary = FinnaJSONParser.parseLibrary(object.optJSONObject("data"));
+                            // Injecting new additional data
+                            library.setImages(detailLibrary.getImages());
+                            library.setSlogan(detailLibrary.getSlogan());
+                            library.setLinks(detailLibrary.getLinks());
+                            library.setServices(detailLibrary.getServices());
+                            library.setScheduleNotices(detailLibrary.getScheduleNotices());
+                            librariesInterface.onGetLibrary(library);
+                        } else
+                            throw new KirkesClientException("Unable to parse JSON: " + body);
+                    } catch (IOException | ParseException e) {
+                        librariesInterface.onError(e);
+                    }
+                } else {
+                    librariesInterface.onError(new KirkesClientException("Response code " + response.code()));
+                }
+            }
+        });
+    }
+
+    /**
+     * Get library extra data (note! this only gets some data, not all of them! Only images, slogan, links, services and schedule notices, which aren't available from the library list)
+     *
+     * @param library            library
+     * @param librariesInterface callback
+     */
+    public void getLibrary(Library library, LibrariesInterface librariesInterface) {
+        if (cachedBuilding != null) {
+            getLibraryFunc(librariesInterface, library);
+        } else {
+            getDefaultBuilding(new LibraryChainInterface() {
+                @Override
+                public void onFetchDefaultLibraryBuilding(Building building) {
+                    cachedBuilding = building;
+                    getLibraryFunc(librariesInterface, library);
+                }
+
+                @Override
+                public void onFetchLibraryBuildings(List<Building> buildingList) {
+
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    librariesInterface.onError(e);
+                }
+            });
+        }
+    }
+
     private void searchFunc(String query, Building building, boolean rawData, int page, int limit, SearchInterface searchInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -477,6 +783,7 @@ public class FinnaClient {
     }
 
     /**
+     * Get Resource info
      * @param id                    ID of resource
      * @param resourceInfoInterface callback
      */
@@ -554,6 +861,12 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Make a search
+     *
+     * @param query           Query of search
+     * @param searchInterface callback
+     */
     public void search(String query, SearchInterface searchInterface) {
         System.out.println("Cache status: " + (cachedBuilding != null));
         if (cachedBuilding != null) {
@@ -578,6 +891,13 @@ public class FinnaClient {
         }
     }
 
+    /**
+     * Make a search
+     *
+     * @param query           Query for search
+     * @param rawData         Whether to include raw data or not
+     * @param searchInterface callback
+     */
     public void search(String query, boolean rawData, SearchInterface searchInterface) {
         if (cachedBuilding != null) {
             searchFunc(query, cachedBuilding, rawData, 1, 10, searchInterface);
@@ -601,6 +921,13 @@ public class FinnaClient {
         }
     }
 
+    /**
+     * Make a search
+     *
+     * @param query           Query to search
+     * @param page            page number
+     * @param searchInterface callback
+     */
     public void search(String query, int page, SearchInterface searchInterface) {
         if (cachedBuilding != null) {
             searchFunc(query, cachedBuilding, false, page, 10, searchInterface);
@@ -624,6 +951,14 @@ public class FinnaClient {
         }
     }
 
+    /**
+     * Make a search
+     *
+     * @param query           Query to search
+     * @param page            Page number
+     * @param rawData         Whether to include raw data or not
+     * @param searchInterface callback
+     */
     public void search(String query, int page, boolean rawData, SearchInterface searchInterface) {
         if (cachedBuilding != null) {
             searchFunc(query, cachedBuilding, rawData, page, 10, searchInterface);
@@ -647,6 +982,14 @@ public class FinnaClient {
         }
     }
 
+    /**
+     * Make a search
+     *
+     * @param query           Query to search
+     * @param page            Page Limit
+     * @param limit           Max. number of items on one page
+     * @param searchInterface callback
+     */
     public void search(String query, int page, int limit, SearchInterface searchInterface) {
         if (cachedBuilding != null) {
             searchFunc(query, cachedBuilding, false, page, limit, searchInterface);
@@ -670,6 +1013,15 @@ public class FinnaClient {
         }
     }
 
+    /**
+     * Make a search
+     *
+     * @param query           Query to search
+     * @param page            Page number
+     * @param limit           Max. number of items on a page
+     * @param rawData         Whether to include raw data or not
+     * @param searchInterface callback
+     */
     public void search(String query, int page, int limit, boolean rawData, SearchInterface searchInterface) {
         if (cachedBuilding != null) {
             searchFunc(query, cachedBuilding, rawData, page, limit, searchInterface);
@@ -693,6 +1045,11 @@ public class FinnaClient {
         }
     }
 
+    /**
+     * Get default pickup location assigned to card/account
+     *
+     * @param holdsInterface callback
+     */
     public void getDefaultPickupLocation(PickupLocationsInterface holdsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -726,6 +1083,49 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get all fines as list
+     *
+     * @param finesInterface callback
+     */
+    public void getFines(FinesInterface finesInterface) {
+        preCheck(new PreCheckInterface() {
+            @Override
+            public void onPreCheck() {
+                webClient.getRequest(true, true, webClient.generateURL("MyResearch/Fines"), new WebClient.WebClientListener() {
+                    @Override
+                    public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                        finesInterface.onError(e);
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Response response) {
+                        if (response.code() == 200) {
+                            try {
+                                finesInterface.onFines(KirkesHTMLParser.extractFines(response.body().string()));
+                            } catch (Exception e) {
+                                finesInterface.onError(e);
+                            }
+                        } else {
+                            finesInterface.onError(new KirkesClientException("Response code " + response.code()));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                finesInterface.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Get default building assigned to card
+     *
+     * @param cardId                Card Id
+     * @param libraryChainInterface callback
+     */
     public void getDefaultBuilding(String cardId, LibraryChainInterface libraryChainInterface) {
         if (cachedBuilding != null) {
             libraryChainInterface.onFetchDefaultLibraryBuilding(cachedBuilding);
@@ -826,6 +1226,11 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get selected card's ID
+     *
+     * @param cardInterface callback
+     */
     public void getSelectedCardId(CardInterface cardInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -858,6 +1263,11 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get account details
+     *
+     * @param detailsInterface callback
+     */
     public void getAccountDetails(AccountDetailsInterface detailsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
@@ -912,6 +1322,11 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Get user types for sign in, in other words, get all available libraries
+     *
+     * @param userTypeInterface callback
+     */
     public void getUserTypes(UserTypeInterface userTypeInterface) {
         webClient.getRequest(true, true, webClient.generateURL("MyResearch/UserLogin?layout=lightbox"), new WebClient.WebClientListener() {
             @Override
@@ -1000,6 +1415,7 @@ public class FinnaClient {
     }
 
     private void fetchLoginCSRF(LoginCSRFInterface loginCSRFInterface) {
+        webClient.getClientCookieJar().clear();
         webClient.getRequest(true, true, webClient.generateURL("MyResearch/UserLogin?layout=lightbox"), new WebClient.WebClientListener() {
             @Override
             public void onFailed(@NotNull Call call, @NotNull IOException e) {
@@ -1027,6 +1443,11 @@ public class FinnaClient {
         });
     }
 
+    /**
+     * Set cached building to be used as cache if you have one saved somewhere
+     *
+     * @param cachedBuilding Cached Building
+     */
     public void setCachedBuilding(Building cachedBuilding) {
         this.cachedBuilding = cachedBuilding;
     }

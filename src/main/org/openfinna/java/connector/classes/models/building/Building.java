@@ -17,6 +17,11 @@ public class Building {
         return id;
     }
 
+    public String getRawId() {
+        String[] split = id.split("/");
+        return split[1];
+    }
+
     public void setId(String id) {
         this.id = id;
     }

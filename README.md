@@ -23,7 +23,7 @@ OpenFinna Java Library, same functionality from the API server, but on-device.
 - [ ] Support multiple library cards
 - [ ] API Call for attaching a new card to user's account
 - [ ] Change PIN-code
-- [ ] Get librari information
+- [x] Get library information
 
 
 ## Why is this existing in the first place?

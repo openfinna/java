@@ -404,7 +404,7 @@ public class KirkesHTMLParser {
                     type = typeElem.text();
 
                 if (imageElem != null)
-                    image = StringEscapeUtils.unescapeJava(imageElem.attributes().get("src"));
+                    image = WebClient.optimizeURL(WebClient.kirkesBaseURL) + StringEscapeUtils.unescapeJava(imageElem.attributes().get("src"));
 
                 if (metadataElem != null) {
                     Element authorUrl = metadataElem.getElementsByTag("a").first();

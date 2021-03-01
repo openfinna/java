@@ -218,7 +218,13 @@ public class KirkesHTMLParser {
                 types.add(new HoldingDetails.HoldingType(codeName, name));
             }
         }
-        return new HoldingDetails(types, info);
+        Element commentElem = document.getElementsByAttributeValue("name", "gatheredDetails[comment]").first();
+        Element partElem = document.getElementsByAttributeValue("name", "gatheredDetails[part_issue]").first();
+        Element requiredByElem = document.getElementsByAttributeValue("name", "gatheredDetails[requiredBy]").first();
+        String requiredBy = null;
+        if (requiredByElem != null)
+            requiredBy = requiredByElem.attr("value");
+        return new HoldingDetails(types, info, (commentElem != null), (partElem != null), requiredBy);
     }
 
     /**

@@ -5,12 +5,16 @@ import org.junit.Test;
 import org.openfinna.java.OpenFinna;
 import org.openfinna.java.connector.FinnaClient;
 import org.openfinna.java.connector.classes.UserAuthentication;
+import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
+import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
+import org.openfinna.java.connector.classes.models.holds.PickupLocation;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.interfaces.DescriptionInterface;
 import org.openfinna.java.connector.interfaces.LoansInterface;
 import org.openfinna.java.connector.interfaces.LoginInterface;
+import org.openfinna.java.connector.interfaces.PickupLocationsInterface;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -93,6 +97,33 @@ public class FinnaTest {
                 System.exit(-1);
             }
         });
+        countDownLatch.await();
+    }
+
+    @Test
+    public void getPickupLocations() throws Exception {
+        signIn();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        finnaClient.getPickupLocations(new Resource("helmet.2121045"), new PickupLocationsInterface() {
+            @Override
+            public void onFetchPickupLocations(List<PickupLocation> locations, HoldingDetails holdingDetails, PickupLocation defaultLocation) {
+                System.out.println("Details: " + new Gson().toJson(holdingDetails));
+                System.out.println("Default: " + defaultLocation);
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFetchDefaultPickupLocation(PickupLocation defaultLocation, List<PickupLocation> allLocations) {
+
+            }
+
+            @Override
+            public void onError(Exception e) {
+                System.out.println("error!");
+                e.printStackTrace();
+                System.exit(-1);
+            }
+        }, null);
         countDownLatch.await();
     }
 }

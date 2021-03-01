@@ -6,10 +6,39 @@ import java.util.List;
 public class HoldingDetails implements Serializable {
     private List<HoldingType> holdingTypes;
     private String info;
+    private boolean commentsEnabled, partTextEnabled;
+    private String dateSelectionValue;
 
-    public HoldingDetails(List<HoldingType> holdingTypes, String info) {
+    public HoldingDetails(List<HoldingType> holdingTypes, String info, boolean commentsEnabled, boolean partTextEnabled, String dateSelectionValue) {
         this.holdingTypes = holdingTypes;
         this.info = info;
+        this.commentsEnabled = commentsEnabled;
+        this.partTextEnabled = partTextEnabled;
+        this.dateSelectionValue = dateSelectionValue;
+    }
+
+    public boolean isCommentsEnabled() {
+        return commentsEnabled;
+    }
+
+    public void setCommentsEnabled(boolean commentsEnabled) {
+        this.commentsEnabled = commentsEnabled;
+    }
+
+    public boolean isPartTextEnabled() {
+        return partTextEnabled;
+    }
+
+    public void setPartTextEnabled(boolean partTextEnabled) {
+        this.partTextEnabled = partTextEnabled;
+    }
+
+    public String getDateSelectionValue() {
+        return dateSelectionValue;
+    }
+
+    public void setDateSelectionValue(String dateSelectionValue) {
+        this.dateSelectionValue = dateSelectionValue;
     }
 
     public List<HoldingType> getHoldingTypes() {

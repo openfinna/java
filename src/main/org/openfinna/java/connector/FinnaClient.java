@@ -31,7 +31,9 @@ import org.openfinna.java.connector.utils.BuildingUtils;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
@@ -238,8 +240,8 @@ public class FinnaClient {
      * @param holdingType    Holding Type
      * @param holdsInterface callback
      */
-    public void makeHold(Resource resource, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, HoldsInterface holdsInterface) {
-        makeHoldFunc(resource.getId(), pickupLocation, holdingType, holdsInterface);
+    public void makeHold(Resource resource, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, String comment, String partText, Date requiredBy, HoldsInterface holdsInterface) {
+        makeHoldFunc(resource.getId(), pickupLocation, holdingType, comment, partText, requiredBy, holdsInterface);
     }
 
     /**
@@ -250,24 +252,36 @@ public class FinnaClient {
      * @param holdingType    HoldingDetails holdingType
      * @param holdsInterface callback
      */
-    public void makeHold(String id, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, HoldsInterface holdsInterface) {
-        makeHoldFunc(id, pickupLocation, holdingType, holdsInterface);
+    public void makeHold(String id, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, String comment, String partText, Date requiredBy, HoldsInterface holdsInterface) {
+        makeHoldFunc(id, pickupLocation, holdingType, comment, partText, requiredBy, holdsInterface);
     }
 
-    private void makeHoldFunc(String id, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, HoldsInterface holdsInterface) {
+    private void makeHoldFunc(String id, PickupLocation pickupLocation, HoldingDetails.HoldingType holdingType, String comment, String partText, Date requiredBy, HoldsInterface holdsInterface) {
         preCheck(new PreCheckInterface() {
             @Override
             public void onPreCheck() {
                 fetchHashKey(id, new HashKeyInterface() {
                     @Override
                     public void onFetchHashToken(String hashToken) {
-                        FormBody postData = new FormBody.Builder()
-                                .add("gatheredDetails[requestGroupId]", holdingType.getId())
+                        FormBody.Builder postData = new FormBody.Builder()
                                 .add("gatheredDetails[pickUpLocation]", pickupLocation.getId())
                                 .add("layout", "lightbox")
-                                .add("placeHold", "")
-                                .build();
-                        webClient.postRequest(true, false, webClient.generateURL("Record/" + id + "/Hold?id=" + id + "&level=title&hashKey=" + hashToken + "&layout=lightbox"), postData, new WebClient.WebClientListener() {
+                                .add("gatheredDetails[acceptTerms]", "")
+                                .add("placeHold", "");
+                        if (holdingType != null) {
+                            postData.add("gatheredDetails[requestGroupId]", holdingType.getId());
+                        }
+                        if (comment != null) {
+                            postData.add("gatheredDetails[comment]", comment);
+                        }
+                        if (partText != null) {
+                            postData.add("gatheredDetails[part_issue]", partText);
+                        }
+                        if (requiredBy != null) {
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
+                            postData.add("gatheredDetails[requiredBy]", dateFormat.format(requiredBy));
+                        }
+                        webClient.postRequest(true, false, webClient.generateURL("Record/" + id + "/Hold?id=" + id + "&level=title&hashKey=" + hashToken + "&layout=lightbox"), postData.build(), new WebClient.WebClientListener() {
                             @Override
                             public void onFailed(@NotNull Call call, @NotNull IOException e) {
                                 holdsInterface.onError(e);

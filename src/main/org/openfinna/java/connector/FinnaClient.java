@@ -1459,7 +1459,6 @@ public class FinnaClient {
                 if (response.isSuccessful())
                     validationInterface.onSessionValidated();
                 else {
-                    System.out.println(new Gson().toJson(FinnaClient.this.userAuthentication));
                     login(FinnaClient.this.userAuthentication, false, new LoginInterface() {
                         @Override
                         public void onError(Exception e) {

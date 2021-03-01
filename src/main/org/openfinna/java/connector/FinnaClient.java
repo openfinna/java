@@ -929,7 +929,6 @@ public class FinnaClient {
      * @param searchInterface callback
      */
     public void search(String query, SearchInterface searchInterface) {
-        System.out.println("Cache status: " + (cachedBuilding != null));
         if (cachedBuilding != null) {
             searchFunc(query, cachedBuilding, false, 1, 10, searchInterface);
         } else {

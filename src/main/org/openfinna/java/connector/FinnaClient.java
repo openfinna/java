@@ -114,7 +114,8 @@ public class FinnaClient {
                                             @Override
                                             public void onGetAccountDetails(User user) {
                                                 FinnaClient.this.userAuthentication.setSession(webClient.getClientCookieJar().getSession());
-                                                changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, user, null);
+                                                if (changeListener != null)
+                                                    changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, user, null);
                                                 loginInterface.onLogin(FinnaClient.this.userAuthentication, user);
                                             }
 
@@ -125,7 +126,8 @@ public class FinnaClient {
                                         });
                                     } else {
                                         FinnaClient.this.userAuthentication.setSession(webClient.getClientCookieJar().getSession());
-                                        changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, null, null);
+                                        if (changeListener != null)
+                                            changeListener.onAuthenticationChange(FinnaClient.this.userAuthentication, null, null);
                                         loginInterface.onLogin(FinnaClient.this.userAuthentication, null);
                                     }
                                 } else {
@@ -1185,7 +1187,8 @@ public class FinnaClient {
                                                 }
                                             }
                                             cachedBuilding = building;
-                                            changeListener.onAuthenticationChange(userAuthentication, null, building);
+                                            if (changeListener != null)
+                                                changeListener.onAuthenticationChange(userAuthentication, null, building);
                                             libraryChainInterface.onFetchDefaultLibraryBuilding(building);
                                         }
 
@@ -1418,6 +1421,7 @@ public class FinnaClient {
                 if (response.isSuccessful())
                     validationInterface.onSessionValidated();
                 else {
+                    System.out.println(new Gson().toJson(FinnaClient.this.userAuthentication));
                     login(FinnaClient.this.userAuthentication, false, new LoginInterface() {
                         @Override
                         public void onError(Exception e) {

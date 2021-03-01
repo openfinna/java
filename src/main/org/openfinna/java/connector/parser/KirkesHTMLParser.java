@@ -32,10 +32,8 @@ import java.util.regex.Pattern;
  */
 public class KirkesHTMLParser {
 
-    private static final int maxRenewDefault = 3;
-
     private static final String renewCountDelimiter = "/";
-    private static final String renewCountRegex = "([0-9]+" + renewCountDelimiter + "[0-9]+)";
+    private static final String renewCountRegex = "([0-9]+\\" + renewCountDelimiter + "[0-9]+)";
     private static final String dueDateRegex = "((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+";
     private static final String expirationDateRegex = "(((?:[0-9]{1}.)|(?:[0-9]{2}.)){2}[0-9]+)";
     private static final String orderNoRegex = "([0-9]+)";
@@ -420,7 +418,7 @@ public class KirkesHTMLParser {
                             renewId = inputTwo.attr("value");
 
                 for (Element text : textElements) {
-                    Matcher renewCountMatcher = renewCountPattern.matcher(text.text());
+                    Matcher renewCountMatcher = renewCountPattern.matcher(text.text().replace(" ", ""));
                     Matcher dueDateMatcher = dueDatePattern.matcher(text.text());
                     if (renewCountMatcher.find()) {
                         String[] renewCountNumbers = renewCountMatcher.group(1).replace(renewCountDelimiter, ",").split(",");

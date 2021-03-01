@@ -106,6 +106,10 @@ public class FinnaJSONParser {
             List<Link> parsedLinks = new Gson().fromJson(libraryJSON.getJSONArray("links").toString(), TypeToken.getParameterized(List.class, Link.class).getType());
             links.addAll(parsedLinks);
         }
+        if (libraryJSON.has("pictures")) {
+            List<Image> parsedImages = new Gson().fromJson(libraryJSON.getJSONArray("pictures").toString(), TypeToken.getParameterized(List.class, Image.class).getType());
+            images.addAll(parsedImages);
+        }
         LibraryType type = LibraryType.MUNICIPAL;
         if (libraryJSON.optString("type", "").equals("mobile"))
             type = LibraryType.MOBILE;

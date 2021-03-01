@@ -8,6 +8,7 @@ import org.openfinna.java.connector.classes.UserAuthentication;
 import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
 import org.openfinna.java.connector.classes.models.loans.Loan;
+import org.openfinna.java.connector.interfaces.DescriptionInterface;
 import org.openfinna.java.connector.interfaces.LoansInterface;
 import org.openfinna.java.connector.interfaces.LoginInterface;
 
@@ -62,6 +63,27 @@ public class FinnaTest {
             @Override
             public void onLoanRenew(Loan loan, String status) {
 
+            }
+
+            @Override
+            public void onError(Exception e) {
+                System.out.println("error!");
+                e.printStackTrace();
+                System.exit(-1);
+            }
+        });
+        countDownLatch.await();
+    }
+
+    @Test
+    public void getDescription() throws Exception {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        finnaClient.getResourceDescription("3amk.137069", new DescriptionInterface() {
+            @Override
+            public void onGetDescription(String description) {
+                System.out.println("Desc: " + description);
+                assert description.length() > 0;
+                countDownLatch.countDown();
             }
 
             @Override

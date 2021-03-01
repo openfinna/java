@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.jsoup.Jsoup;
 import org.openfinna.java.connector.classes.UserAuthentication;
 import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
@@ -685,6 +686,43 @@ public class FinnaClient {
                     }
                 } else {
                     librariesInterface.onError(new KirkesClientException("Response code " + response.code()));
+                }
+            }
+        });
+    }
+
+    /**
+     * Get resource's description
+     *
+     * @param id                   Resource ID
+     * @param descriptionInterface callback
+     */
+    public void getResourceDescription(String id, DescriptionInterface descriptionInterface) {
+        webClient.getRequest(false, true, webClient.generateURL("AJAX/JSON?method=getDescription&id=" + id), new WebClient.WebClientListener() {
+            @Override
+            public void onFailed(@NotNull Call call, @NotNull IOException e) {
+                descriptionInterface.onError(e);
+            }
+
+            @Override
+            public void onResponse(@NotNull Response response) {
+                if (response.code() == 200) {
+                    try {
+                        String body = Objects.requireNonNull(response.body()).string();
+                        if (isJSONValid(body)) {
+                            JSONObject object = new JSONObject(body);
+                            if (object.opt("data") instanceof Boolean) {
+                                throw new KirkesClientException("Error occurred");
+                            }
+                            String desc = object.optJSONObject("data").optString("html", "");
+                            descriptionInterface.onGetDescription(Jsoup.parse(desc).wholeText());
+                        } else
+                            throw new KirkesClientException("Unable to parse JSON: " + body);
+                    } catch (Exception e) {
+                        descriptionInterface.onError(e);
+                    }
+                } else {
+                    descriptionInterface.onError(new KirkesClientException("Response code " + response.code()));
                 }
             }
         });

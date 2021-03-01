@@ -477,7 +477,7 @@ public class KirkesHTMLParser {
                         if (content.contains("/")) {
                             String[] slashSplit = content.split("/");
                             if (slashSplit.length > 0)
-                                content = slashSplit[0];
+                                content = slashSplit[0].trim();
                         }
                         try {
                             queue = Integer.parseInt(content);

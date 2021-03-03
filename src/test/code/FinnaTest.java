@@ -11,6 +11,8 @@ import org.openfinna.java.connector.classes.models.UserType;
 import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
 import org.openfinna.java.connector.classes.models.holds.PickupLocation;
 import org.openfinna.java.connector.classes.models.libraries.Library;
+import org.openfinna.java.connector.classes.models.libraries.schedule.Day;
+import org.openfinna.java.connector.classes.models.libraries.schedule.SelfServicePeriod;
 import org.openfinna.java.connector.classes.models.loans.Loan;
 import org.openfinna.java.connector.interfaces.*;
 
@@ -133,7 +135,14 @@ public class FinnaTest {
             @Override
             public void onGetLibraries(List<Library> libraries) {
                 for (Library library : libraries) {
-                    System.out.println(new Gson().toJson(library.getDays()));
+                    for (Day day : library.getDays()) {
+                        for (SelfServicePeriod selfServicePeriod : day.getSelfServicePeriods()) {
+                            if (selfServicePeriod.getStart() == null) {
+                                System.out.println(new Gson().toJson(library));
+                            }
+                        }
+                    }
+                    //System.out.println(new Gson().toJson(library.getDays()));
                 }
                 countDownLatch.countDown();
             }

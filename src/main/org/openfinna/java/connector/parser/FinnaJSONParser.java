@@ -148,8 +148,7 @@ public class FinnaJSONParser {
                 int opensHour = times.optInt("opens");
                 int closesHour = times.optInt("closes");
                 boolean selfService = times.optBoolean("selfservice");
-
-                if (times.length() > 1) {
+                if (openTimes.length() > 1) {
                     JSONObject closes = openTimes.optJSONObject(openTimes.length() - 1);
                     Date selfServiceStart = null;
                     Date selfServiceEnd;

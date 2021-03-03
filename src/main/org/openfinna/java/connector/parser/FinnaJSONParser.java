@@ -98,6 +98,7 @@ public class FinnaJSONParser {
         String shortName = libraryJSON.optString("shortName");
         String slug = libraryJSON.optString("slug");
         String slogan = libraryJSON.optString("slogan");
+        boolean currentlyOpen = libraryJSON.optBoolean("openNow");
         List<Link> links = new ArrayList<>();
         List<Image> images = new ArrayList<>();
         List<String> services = parseJSONStringArray("services", libraryJSON);
@@ -129,7 +130,7 @@ public class FinnaJSONParser {
         List<Day> librarySchedule = new ArrayList<>();
         if (libraryJSON.has("openTimes") && libraryJSON.optJSONObject("openTimes").has("schedules"))
             librarySchedule.addAll(parseLibrarySchedule(libraryJSON.optJSONObject("openTimes").optJSONArray("schedules")));
-        return new Library(id, name, shortName, slug, type, email, homepage, libraryLocation, images, links, services, scheduleNotices, slogan, librarySchedule);
+        return new Library(id, name, shortName, slug, type, email, homepage, libraryLocation, images, links, services, scheduleNotices, slogan, librarySchedule, currentlyOpen);
     }
 
     public static List<Day> parseLibrarySchedule(JSONArray scheduleJSON) throws ParseException {

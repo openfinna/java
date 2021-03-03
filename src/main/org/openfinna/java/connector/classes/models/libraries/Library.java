@@ -20,8 +20,9 @@ public class Library implements Serializable {
     private List<String> scheduleNotices;
     private String slogan;
     private List<Day> days;
+    private boolean currentlyOpen;
 
-    public Library(String id, String name, String shortName, String slug, LibraryType type, String email, String homepage, LibraryLocation libraryLocation, List<Image> images, List<Link> links, List<String> services, List<String> scheduleNotices, String slogan, List<Day> days) {
+    public Library(String id, String name, String shortName, String slug, LibraryType type, String email, String homepage, LibraryLocation libraryLocation, List<Image> images, List<Link> links, List<String> services, List<String> scheduleNotices, String slogan, List<Day> days, boolean currentlyOpen) {
         this.id = id;
         this.name = name;
         this.shortName = shortName;
@@ -36,6 +37,15 @@ public class Library implements Serializable {
         this.scheduleNotices = scheduleNotices;
         this.slogan = slogan;
         this.days = days;
+        this.currentlyOpen = currentlyOpen;
+    }
+
+    public boolean isCurrentlyOpen() {
+        return currentlyOpen;
+    }
+
+    public void setCurrentlyOpen(boolean currentlyOpen) {
+        this.currentlyOpen = currentlyOpen;
     }
 
     public String getId() {

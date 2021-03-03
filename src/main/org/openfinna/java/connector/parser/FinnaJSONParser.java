@@ -8,6 +8,7 @@ import org.openfinna.java.connector.classes.ResourceInfo;
 import org.openfinna.java.connector.classes.models.libraries.*;
 import org.openfinna.java.connector.classes.models.libraries.schedule.Day;
 import org.openfinna.java.connector.classes.models.libraries.schedule.Schedule;
+import org.openfinna.java.connector.classes.models.libraries.schedule.SelfServicePeriod;
 import org.openfinna.java.connector.classes.models.resource.Author;
 import org.openfinna.java.connector.classes.models.resource.Format;
 
@@ -140,26 +141,46 @@ public class FinnaJSONParser {
             Date date = scheduleDateFormat.parse(day.optString("date", "01.01.") + Calendar.getInstance().get(Calendar.YEAR));
             boolean closed = day.optBoolean("closed", false);
             Schedule schedule = null;
+            List<SelfServicePeriod> selfServicePeriods = new ArrayList<>();
+            JSONArray openTimes = day.optJSONArray("times");
             if (!closed) {
-                JSONObject times = day.optJSONArray("times").optJSONObject(0);
+                JSONObject times = openTimes.optJSONObject(0);
                 int opensHour = times.optInt("opens");
                 int closesHour = times.optInt("closes");
                 boolean selfService = times.optBoolean("selfservice");
 
-                Calendar opensCalendar = Calendar.getInstance();
-                opensCalendar.setTime(date);
-                opensCalendar.set(Calendar.HOUR, opensHour);
-                opensCalendar.set(Calendar.MINUTE, 0);
+                if (times.length() > 1) {
+                    JSONObject closes = openTimes.optJSONObject(openTimes.length() - 1);
+                    Date selfServiceStart = null;
+                    Date selfServiceEnd;
+                    for (int i2 = 0; i2 < openTimes.length(); i2++) {
+                        JSONObject time = openTimes.optJSONObject(i2);
+                        int opens = time.optInt("opens");
+                        selfServiceEnd = convertToDate(date, opens);
+                        boolean selfservice = time.optBoolean("selfservice");
+                        if (selfservice && selfServiceStart == null)
+                            selfServiceStart = convertToDate(date, opens);
+                        else if (!selfservice) {
+                            selfServicePeriods.add(new SelfServicePeriod(selfServiceStart, selfServiceEnd));
+                            selfServiceStart = null;
+                        }
+                    }
+                    closesHour = closes.optInt("closes");
+                }
 
-                Calendar closesCalendar = Calendar.getInstance();
-                closesCalendar.setTime(date);
-                closesCalendar.set(Calendar.HOUR, closesHour);
-                closesCalendar.set(Calendar.MINUTE, 0);
-                schedule = new Schedule(opensCalendar.getTime(), closesCalendar.getTime(), selfService);
+                schedule = new Schedule(convertToDate(date, opensHour), convertToDate(date, closesHour), selfService);
             }
-            days.add(new Day(date, closed, schedule));
+            days.add(new Day(date, closed, schedule, selfServicePeriods));
         }
         return days;
+    }
+
+    private static Date convertToDate(Date day, int hour) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(day);
+        calendar.set(Calendar.HOUR, hour);
+        calendar.set(Calendar.MINUTE, 0);
+        return calendar.getTime();
     }
 
     public static List<Library> parseLibraries(JSONArray librariesJSON) throws ParseException {

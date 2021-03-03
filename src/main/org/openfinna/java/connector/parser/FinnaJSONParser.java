@@ -149,22 +149,33 @@ public class FinnaJSONParser {
                 int closesHour = times.optInt("closes");
                 boolean selfService = times.optBoolean("selfservice");
                 if (openTimes.length() > 1) {
-                    JSONObject closes = openTimes.optJSONObject(openTimes.length() - 1);
+                    List<Integer> closingDates = new ArrayList<>();
                     Date selfServiceStart = null;
-                    Date selfServiceEnd;
+                    Date selfServiceEnd = null;
                     for (int i2 = 0; i2 < openTimes.length(); i2++) {
                         JSONObject time = openTimes.optJSONObject(i2);
                         int opens = time.optInt("opens");
-                        selfServiceEnd = convertToDate(date, opens);
+                        int closesSf = time.optInt("closes");
+                        closingDates.add(closesSf);
                         boolean selfservice = time.optBoolean("selfservice");
-                        if (selfservice && selfServiceStart == null)
-                            selfServiceStart = convertToDate(date, opens);
-                        else if (!selfservice) {
+                        if (selfServiceStart != null && selfServiceEnd != null) {
                             selfServicePeriods.add(new SelfServicePeriod(selfServiceStart, selfServiceEnd));
                             selfServiceStart = null;
+                            selfServiceEnd = null;
+                        }
+                        if (selfservice) {
+                            selfServiceStart = convertToDate(date, opens);
+                        } else {
+                            selfServiceEnd = convertToDate(date, opens);
                         }
                     }
-                    closesHour = closes.optInt("closes");
+                    if (selfServiceStart != null && selfServiceEnd != null) {
+                        selfServicePeriods.add(new SelfServicePeriod(selfServiceStart, selfServiceEnd));
+                    }
+                    if (!closingDates.isEmpty()) {
+                        closingDates.sort((o1, o2) -> o2 - o1);
+                        closesHour = closingDates.get(0);
+                    }
                 }
 
                 schedule = new Schedule(convertToDate(date, opensHour), convertToDate(date, closesHour), selfService);

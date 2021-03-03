@@ -144,7 +144,7 @@ public class FinnaJSONParser {
                 JSONObject times = day.optJSONArray("times").optJSONObject(0);
                 int opensHour = times.optInt("opens");
                 int closesHour = times.optInt("closes");
-                boolean selfService = times.optBoolean("selfService");
+                boolean selfService = times.optBoolean("selfservice");
 
                 Calendar opensCalendar = Calendar.getInstance();
                 opensCalendar.setTime(date);

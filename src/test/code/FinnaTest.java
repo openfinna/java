@@ -10,11 +10,9 @@ import org.openfinna.java.connector.classes.models.User;
 import org.openfinna.java.connector.classes.models.UserType;
 import org.openfinna.java.connector.classes.models.holds.HoldingDetails;
 import org.openfinna.java.connector.classes.models.holds.PickupLocation;
+import org.openfinna.java.connector.classes.models.libraries.Library;
 import org.openfinna.java.connector.classes.models.loans.Loan;
-import org.openfinna.java.connector.interfaces.DescriptionInterface;
-import org.openfinna.java.connector.interfaces.LoansInterface;
-import org.openfinna.java.connector.interfaces.LoginInterface;
-import org.openfinna.java.connector.interfaces.PickupLocationsInterface;
+import org.openfinna.java.connector.interfaces.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -124,6 +122,34 @@ public class FinnaTest {
                 System.exit(-1);
             }
         }, null);
+        countDownLatch.await();
+    }
+
+    @Test
+    public void getLibs() throws Exception {
+        signIn();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        finnaClient.getLibraries(new LibrariesInterface() {
+            @Override
+            public void onGetLibraries(List<Library> libraries) {
+                for (Library library : libraries) {
+                    System.out.println(new Gson().toJson(library.getDays()));
+                }
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onGetLibrary(Library library) {
+
+            }
+
+            @Override
+            public void onError(Exception e) {
+                System.out.println("error!");
+                e.printStackTrace();
+                System.exit(-1);
+            }
+        });
         countDownLatch.await();
     }
 }

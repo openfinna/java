@@ -834,7 +834,7 @@ public class FinnaClient {
                                 String body = Objects.requireNonNull(response.body()).string();
                                 if (isJSONValid(body)) {
                                     JSONObject object = new JSONObject(body);
-                                    if (object.optInt("resultCount") > 0) {
+                                    if (object.optInt("resultCount") > 0 && object.has("records")) {
                                         searchInterface.onSearchResults(object.optInt("resultCount"), FinnaJSONParser.parseResourceInfos(object.optJSONArray("records")));
                                     } else
                                         searchInterface.onSearchResults(0, new ArrayList<>());

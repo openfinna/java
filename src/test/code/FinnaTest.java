@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import org.junit.Test;
 import org.openfinna.java.OpenFinna;
 import org.openfinna.java.connector.FinnaClient;
+import org.openfinna.java.connector.classes.ResourceInfo;
 import org.openfinna.java.connector.classes.UserAuthentication;
 import org.openfinna.java.connector.classes.models.Resource;
 import org.openfinna.java.connector.classes.models.User;
@@ -135,13 +136,7 @@ public class FinnaTest {
             @Override
             public void onGetLibraries(List<Library> libraries) {
                 for (Library library : libraries) {
-                    for (Day day : library.getDays()) {
-                        for (SelfServicePeriod selfServicePeriod : day.getSelfServicePeriods()) {
-                            if (selfServicePeriod.getStart() == null) {
-                                System.out.println(new Gson().toJson(library));
-                            }
-                        }
-                    }
+                    System.out.println(new Gson().toJson(library));
                     //System.out.println(new Gson().toJson(library.getDays()));
                 }
                 countDownLatch.countDown();
@@ -150,6 +145,30 @@ public class FinnaTest {
             @Override
             public void onGetLibrary(Library library) {
 
+            }
+
+            @Override
+            public void onError(Exception e) {
+                System.out.println("error!");
+                e.printStackTrace();
+                System.exit(-1);
+            }
+        });
+        countDownLatch.await();
+    }
+
+    @Test
+    public void search() throws Exception {
+        signIn();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        finnaClient.search("google", 1, new SearchInterface() {
+
+
+            @Override
+            public void onSearchResults(int totalCount, List<ResourceInfo> resourceInfoList) {
+                for (ResourceInfo resource : resourceInfoList) {
+                    System.out.println(new Gson().toJson(resource));
+                }
             }
 
             @Override

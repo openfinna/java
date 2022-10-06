@@ -139,8 +139,7 @@ public class KirkesHTMLParser {
         Document document = Jsoup.parse(html);
         List<Building> buildings = new ArrayList<>();
         Elements orgLists = document.getElementsByClass("organisations list-group");
-        if (orgLists.size() > 1) {
-            Element orgList = orgLists.get(1);
+        for (Element orgList : orgLists) {
             Elements orgs = orgList.getElementsByAttributeValue("data-link", "0");
             for (Element org : orgs) {
                 if (org.hasAttr("data-organisation-name") && org.hasAttr("data-organisation")) {
